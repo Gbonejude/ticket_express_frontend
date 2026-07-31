@@ -1,0 +1,18 @@
+# Normalise line endings so the repository always stores LF, whatever each
+# contributor's `core.autocrlf` is set to. Prettier and .editorconfig both
+# enforce LF; without this, a Windows checkout would rewrite every file to CRLF
+# and show the whole tree as modified.
+* text=auto eol=lf
+
+# Binary files must never be normalised.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.pdf binary

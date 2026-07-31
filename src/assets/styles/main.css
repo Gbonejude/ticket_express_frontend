@@ -1,0 +1,34 @@
+/**
+ * Global stylesheet entry point — the only style file imported by main.ts.
+ * Order matters: tokens define the variables the rest of the sheet consumes.
+ */
+
+@import './tokens.css';
+@import './base.css';
+
+/* --- Layout helpers ---------------------------------------------------------
+   Kept to the few primitives every page needs. Component-specific styles belong
+   in the component's own <style scoped> block. */
+
+.container {
+  width: 100%;
+  max-width: var(--container-max);
+  margin-inline: auto;
+  padding-inline: var(--space-4);
+}
+
+.stack > * + * {
+  margin-block-start: var(--space-4);
+}
+
+/* Hidden visually, still read by screen readers. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  border: 0;
+  clip-path: inset(50%);
+}

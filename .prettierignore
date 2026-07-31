@@ -1,0 +1,6 @@
+dist
+coverage
+node_modules
+public
+*.min.*
+package-lock.json

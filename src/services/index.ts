@@ -1,0 +1,5 @@
+export { authService } from './auth.service'
+export { catalogService } from './catalog.service'
+export { eventsService } from './events.service'
+export { ordersService } from './orders.service'
+export { paymentsService } from './payments.service'
