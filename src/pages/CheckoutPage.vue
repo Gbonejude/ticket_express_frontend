@@ -134,10 +134,18 @@ const methods: { value: PaymentMethod; label: string; logo: string }[] = [
 ]
 
 /**
- * Le Togo seul pour l'instant : c'est le seul pays où PayGate encaisse pour
- * cette plateforme. Ajouter un pays ici suffira le jour où ce sera le cas.
+ * Pays où l'un des deux opérateurs proposés opère réellement.
+ *
+ * Moov Africa couvre le Bénin, le Burkina Faso, la Côte d'Ivoire, le Mali, le
+ * Niger et le Togo ; Yas (Mixx) couvre le Togo et le Sénégal. Quelqu'un au
+ * Bénin peut donc payer son billet avant de faire le déplacement.
+ *
+ * ⚠️ Couvrir un pays ne veut pas dire que PayGate y encaisse : cette liste
+ * suit les opérateurs, pas le contrat d'acquisition. À confirmer avec PayGate
+ * avant la mise en production, sinon un acheteur béninois ira jusqu'au bout du
+ * tunnel pour se faire refuser au dernier écran.
  */
-const COUNTRIES = ['Togo']
+const COUNTRIES = ['Togo', 'Bénin', 'Burkina Faso', 'Côte d’Ivoire', 'Mali', 'Niger', 'Sénégal']
 
 const canPay = computed(
   () => acceptsTerms.value && isBuyerComplete.value && lines.value.length > 0 && !isPaying.value,
