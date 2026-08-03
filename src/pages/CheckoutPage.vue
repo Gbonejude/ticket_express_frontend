@@ -55,37 +55,34 @@ const buyer = ref({
 /** Where the ticket is sent once the payment clears. */
 const delivery = ref<'email' | 'whatsapp' | 'both'>('email')
 
-/** WhatsApp number, defaulting to the contact phone. */
-const whatsapp = ref(auth.user?.phone ?? '')
+const MARQUE_MAIL = '/mock/icon-mail.svg'
+const MARQUE_WHATSAPP = '/mock/icon-whatsapp.svg'
 
 const deliveryChannels = [
   {
     value: 'email',
-    icon: 'mail' as const,
+    logos: [MARQUE_MAIL],
     label: 'Par e-mail',
     hint: 'Le billet et son QR code arrivent dans votre boîte de réception.',
   },
   {
     value: 'whatsapp',
-    icon: 'chat' as const,
+    logos: [MARQUE_WHATSAPP],
     label: 'Par WhatsApp',
     hint: 'Vous recevez un lien de téléchargement sur WhatsApp.',
   },
   {
     value: 'both',
-    icon: 'send' as const,
+    logos: [MARQUE_MAIL, MARQUE_WHATSAPP],
     label: 'Les deux',
     hint: 'E-mail et WhatsApp, pour ne pas dépendre d’un seul canal.',
   },
 ]
 
-const needsWhatsapp = computed(() => delivery.value !== 'email')
-
 const isBuyerComplete = computed(() => {
   const { firstName, lastName, email, phone } = buyer.value
-  const hasBase = Boolean(firstName.trim() && lastName.trim() && email.trim() && phone.trim())
 
-  return hasBase && (!needsWhatsapp.value || Boolean(whatsapp.value.trim()))
+  return Boolean(firstName.trim() && lastName.trim() && email.trim() && phone.trim())
 })
 
 let timer: number | undefined
@@ -123,20 +120,24 @@ const countdown = computed(() => {
  * The two mobile-money operators PayGate exposes in Togo, and nothing else.
  *
  * The values are the API's `PaymentMethod` enum, not display labels: `FLOOZ`
- * is Moov Money's wallet and `TMONEY` is Togocom's, rebranded Mixx by Yas. The
- * old name is kept as a hint because most people still say « T-Money ».
+ * is Moov Money's wallet and `TMONEY` is Togocom's, rebranded Mixx by Yas.
+ * Only the current names are shown — an operator that renamed itself does not
+ * want its old name on a payment screen.
  *
  * The marks are the operators' own files — Mixx's from yas.tg, Moov Money's
  * from Wikimedia Commons — served locally so the checkout never calls out to a
  * third party while someone is paying.
  */
-const methods: { value: PaymentMethod; label: string; hint: string; logo: string }[] = [
-  { value: 'TMONEY', label: 'Mixx by Yas', hint: 'ex T-Money', logo: '/mock/pay-mixx-by-yas.svg' },
-  { value: 'FLOOZ', label: 'Moov Money', hint: 'Flooz', logo: '/mock/pay-moov-money.png' },
+const methods: { value: PaymentMethod; label: string; logo: string }[] = [
+  { value: 'TMONEY', label: 'Mixx by Yas', logo: '/mock/pay-mixx-by-yas.svg' },
+  { value: 'FLOOZ', label: 'Moov Money', logo: '/mock/pay-moov-money.webp' },
 ]
 
-/** Togo first: it is where the platform operates and where PayGate settles. */
-const COUNTRIES = ['Togo', 'Bénin', 'Burkina Faso', 'Côte d’Ivoire', 'Ghana', 'Niger', 'Sénégal']
+/**
+ * Le Togo seul pour l'instant : c'est le seul pays où PayGate encaisse pour
+ * cette plateforme. Ajouter un pays ici suffira le jour où ce sera le cas.
+ */
+const COUNTRIES = ['Togo']
 
 const canPay = computed(
   () => acceptsTerms.value && isBuyerComplete.value && lines.value.length > 0 && !isPaying.value,
@@ -152,7 +153,7 @@ async function pay(): Promise<void> {
       first_name: buyer.value.firstName.trim(),
       last_name: buyer.value.lastName.trim(),
       email: buyer.value.email.trim(),
-      phone: (needsWhatsapp.value ? whatsapp.value : buyer.value.phone).trim(),
+      phone: buyer.value.phone.trim(),
       delivery_method: delivery.value,
       items: lines.value.map((line) => ({
         ticket_type_id: line.ticketType.id,
@@ -328,7 +329,9 @@ onBeforeUnmount(() => window.clearInterval(timer))
                     name="delivery"
                     :value="channel.value"
                   />
-                  <span class="channel__icon"><BaseIcon :name="channel.icon" :size="22" /></span>
+                  <span class="channel__icon">
+                    <img v-for="logo in channel.logos" :key="logo" :src="logo" alt="" />
+                  </span>
                   <span class="channel__body">
                     <span class="channel__label">{{ channel.label }}</span>
                     <span class="channel__hint">{{ channel.hint }}</span>
@@ -336,10 +339,9 @@ onBeforeUnmount(() => window.clearInterval(timer))
                 </label>
               </fieldset>
 
-              <label v-if="needsWhatsapp" class="buyer__field buyer__field--spaced">
-                <span>Numéro WhatsApp *</span>
-                <input v-model="whatsapp" type="tel" placeholder="+228 90 12 34 56" required />
-              </label>
+              <p v-if="delivery !== 'email'" class="channels__note t-body-sm">
+                Le billet part sur le numéro saisi plus haut&nbsp;: {{ buyer.phone || '—' }}
+              </p>
             </div>
           </details>
         </div>
@@ -377,10 +379,7 @@ onBeforeUnmount(() => window.clearInterval(timer))
               <span class="method__logo">
                 <img :src="option.logo" :alt="option.label" />
               </span>
-              <span class="method__text">
-                <span class="method__label">{{ option.label }}</span>
-                <span class="method__hint">{{ option.hint }}</span>
-              </span>
+              <span class="method__label">{{ option.label }}</span>
             </label>
           </fieldset>
 
@@ -600,8 +599,10 @@ onBeforeUnmount(() => window.clearInterval(timer))
   gap: var(--space-1);
 }
 
-.buyer__field--spaced {
+.channels__note {
   margin-block-start: var(--space-4);
+  color: var(--color-secondary);
+  line-height: 1.5;
 }
 
 .buyer__field > span {
@@ -661,20 +662,23 @@ onBeforeUnmount(() => window.clearInterval(timer))
   outline-offset: 2px;
 }
 
+/* Pas de pastille teintée derrière les marques : elles ont déjà leur forme et
+   leurs couleurs. La largeur suit le nombre de logos — « Les deux » en porte
+   deux côte à côte. */
 .channel__icon {
-  display: grid;
+  display: flex;
   flex-shrink: 0;
-  place-items: center;
-  width: 2.5rem;
+  gap: var(--space-1);
+  align-items: center;
+  justify-content: center;
+  min-width: 2.5rem;
   height: 2.5rem;
-  color: var(--color-primary);
-  background-color: var(--color-surface-container);
-  border-radius: var(--radius-md);
 }
 
-.channel--active .channel__icon {
-  color: #fff;
-  background-color: var(--color-primary-container);
+.channel__icon img {
+  width: 1.5rem;
+  height: 1.5rem;
+  object-fit: contain;
 }
 
 .channel__body {
@@ -797,22 +801,10 @@ onBeforeUnmount(() => window.clearInterval(timer))
   object-fit: contain;
 }
 
-.method__text {
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-  text-align: start;
-}
-
 .method__label {
   font-size: var(--text-label-bold);
   font-weight: 700;
   line-height: 1.2;
-}
-
-.method__hint {
-  color: var(--color-secondary);
-  font-size: var(--text-body-sm);
 }
 
 .payment__total {
