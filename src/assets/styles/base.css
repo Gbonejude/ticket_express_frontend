@@ -11,18 +11,18 @@
 html {
   -webkit-text-size-adjust: 100%;
   scroll-behavior: smooth;
+
+  /* Anchored sections must not slide under the fixed header. */
+  scroll-padding-top: var(--header-height);
 }
 
 body {
   min-height: 100vh;
-  color: var(--color-text);
+  color: var(--color-on-background);
   font-family: var(--font-sans);
-  font-size: var(--font-size-base);
-  line-height: var(--line-height-base);
+  font-size: var(--text-body-lg);
+  line-height: var(--leading-body);
   background-color: var(--color-background);
-  transition:
-    color var(--transition-base),
-    background-color var(--transition-base);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -32,9 +32,9 @@ h3,
 h4,
 h5,
 h6 {
-  color: var(--color-heading);
-  font-weight: 600;
-  line-height: 1.25;
+  color: var(--color-on-surface);
+  font-weight: 700;
+  line-height: var(--leading-headline-md);
 }
 
 a {
@@ -44,7 +44,7 @@ a {
 }
 
 a:hover {
-  color: var(--color-primary-hover);
+  color: var(--color-surface-tint);
 }
 
 img,
@@ -68,6 +68,16 @@ button {
   cursor: pointer;
   background: none;
   border: none;
+}
+
+ul,
+ol {
+  list-style: none;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
 }
 
 /* Visible keyboard focus everywhere; removing it would break accessibility. */

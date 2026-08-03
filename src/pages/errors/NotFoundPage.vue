@@ -6,7 +6,7 @@ import { RouterLink } from 'vue-router'
   <section class="not-found">
     <p class="not-found__code">404</p>
     <h1>Page introuvable</h1>
-    <p class="not-found__text">La page que vous cherchez n’existe pas ou a été déplacée.</p>
+    <p class="not-found__text">La page que vous cherchez n’existe pas.</p>
 
     <RouterLink :to="{ name: 'home' }" class="not-found__link"> Retour à l’accueil </RouterLink>
   </section>

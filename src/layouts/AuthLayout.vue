@@ -1,51 +1,76 @@
 <script setup lang="ts">
 import { RouterLink, RouterView } from 'vue-router'
 
+import { BaseIcon } from '@/components/ui'
 import { APP_CONFIG } from '@/constants/app'
 
 /**
- * Layout for login and signup: no site navigation, so nothing competes with
- * the form for the visitor's attention.
+ * Layout for sign-in and sign-up.
+ *
+ * No site navigation: nothing should compete with the form. Only the brand —
+ * which doubles as the way back to the home page — and the legal links remain.
  */
+const year = new Date().getFullYear()
 </script>
 
 <template>
-  <div class="auth-layout">
-    <div class="auth-layout__card">
-      <RouterLink :to="{ name: 'home' }" class="auth-layout__brand">
-        {{ APP_CONFIG.name }}
+  <div class="auth">
+    <header class="auth__header">
+      <RouterLink class="auth__brand" :to="{ name: 'home' }">
+        <BaseIcon name="confirmation_number" :size="30" />
+        <span>{{ APP_CONFIG.name }}</span>
       </RouterLink>
+    </header>
 
+    <main id="main-content" tabindex="-1" class="auth__main">
       <RouterView />
-    </div>
+    </main>
+
+    <footer class="auth__footer">
+      <p>© {{ year }} {{ APP_CONFIG.name }}. Tous droits réservés.</p>
+    </footer>
   </div>
 </template>
 
 <style scoped>
-.auth-layout {
-  display: grid;
-  place-items: center;
+.auth {
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
-  padding: var(--space-4);
-  background-color: var(--color-surface);
-}
-
-.auth-layout__card {
-  width: 100%;
-  max-width: 420px;
-  padding: var(--space-8);
   background-color: var(--color-background);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
 }
 
-.auth-layout__brand {
-  display: block;
-  margin-block-end: var(--space-6);
-  color: var(--color-heading);
+.auth__header {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-stack-md) var(--space-gutter);
+  background-color: var(--color-surface-container-lowest);
+  border-block-end: 1px solid var(--color-secondary-container);
+}
+
+.auth__brand {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  color: var(--color-primary-container);
+  font-size: var(--text-headline-xl);
   font-weight: 700;
-  font-size: var(--font-size-lg);
+  letter-spacing: var(--tracking-headline);
+}
+
+.auth__brand :deep(svg) {
+  color: var(--color-primary);
+}
+
+.auth__main {
+  display: flex;
+  flex: 1;
+}
+
+.auth__footer {
+  padding-block: var(--space-6);
+  color: var(--color-secondary);
+  font-size: var(--text-body-sm);
   text-align: center;
 }
 </style>

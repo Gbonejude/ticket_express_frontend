@@ -7,7 +7,9 @@
     // `describe`/`it`/`expect` are global (vitest `globals: true`).
     "types": ["vitest/globals"],
 
-    "baseUrl": ".",
+    /* No `baseUrl`: it is deprecated in TypeScript 5.9 and removed in 7.0, and
+       since 4.1 `paths` no longer needs it — the patterns below resolve
+       relative to this file. Mirrors the `@` alias in `vite.config.ts`. */
     "paths": {
       "@/*": ["./src/*"]
     },

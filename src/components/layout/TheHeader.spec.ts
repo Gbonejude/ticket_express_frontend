@@ -9,13 +9,18 @@ import TheHeader from './TheHeader.vue'
 
 const Blank = { template: '<div />' }
 
+/** Mirrors the real route names the header links to. */
 const router = createRouter({
   history: createMemoryHistory(),
   routes: [
     { path: '/', name: 'home', component: Blank },
     { path: '/evenements', name: 'events', component: Blank },
-    { path: '/mon-compte', name: 'account', component: Blank },
-    { path: '/mes-commandes', name: 'orders', component: Blank },
+    { path: '/qui-sommes-nous', name: 'about', component: Blank },
+    { path: '/contact', name: 'contact', component: Blank },
+    { path: '/mon-espace', name: 'dashboard', component: Blank },
+    { path: '/mon-espace/billets', name: 'tickets', component: Blank },
+    { path: '/mon-espace/commandes', name: 'orders', component: Blank },
+    { path: '/mon-espace/favoris', name: 'favorites', component: Blank },
     { path: '/connexion', name: 'login', component: Blank },
     { path: '/inscription', name: 'register', component: Blank },
   ],
@@ -23,61 +28,86 @@ const router = createRouter({
 
 /** Mounts the header with a router and a store seeded to the given session. */
 async function mountHeader(signedIn: boolean, fullName = 'Jean Dupont') {
+  await router.push('/')
+  await router.isReady()
+
   const wrapper = mount(TheHeader, {
-    global: {
-      plugins: [router, createTestingPinia({ createSpy: vi.fn })],
-    },
+    global: { plugins: [router, createTestingPinia({ createSpy: vi.fn })] },
   })
 
   const auth = useAuthStore()
 
   auth.accessToken = signedIn ? 'tok_123' : null
-  auth.user = signedIn ? ({ fullName } as never) : null
+  auth.user = signedIn ? ({ fullName, email: 'jean@example.com' } as never) : null
 
   await wrapper.vm.$nextTick()
 
   return wrapper
 }
 
+/** Opens the account dropdown, whose trigger is the last icon button. */
+async function openAccountMenu(wrapper: Awaited<ReturnType<typeof mountHeader>>) {
+  await wrapper.find('.header__account button').trigger('click')
+}
+
 describe('TheHeader', () => {
-  it('shows the sign-in actions to a visitor', async () => {
-    const wrapper = await mountHeader(false)
-
-    expect(wrapper.text()).toContain('Connexion')
-    expect(wrapper.text()).toContain('Créer un compte')
-    expect(wrapper.text()).not.toContain('Mes commandes')
-  })
-
-  it('shows the account actions to a signed-in user', async () => {
-    const wrapper = await mountHeader(true)
-
-    expect(wrapper.text()).toContain('Mes commandes')
-    expect(wrapper.text()).toContain('Jean Dupont')
-    expect(wrapper.text()).not.toContain('Connexion')
-  })
-
-  it('falls back to a generic label when the name is empty', async () => {
-    const wrapper = await mountHeader(true, '')
-
-    expect(wrapper.text()).toContain('Mon compte')
-  })
-
-  it('always exposes the primary navigation', async () => {
-    const wrapper = await mountHeader(false)
-
-    expect(wrapper.text()).toContain('Accueil')
-    expect(wrapper.text()).toContain('Événements')
-  })
-
   it('links the brand to the home route', async () => {
     const wrapper = await mountHeader(false)
 
     expect(wrapper.find('.header__brand').attributes('href')).toBe('/')
   })
 
-  it('labels the navigation for assistive technology', async () => {
+  it('exposes the search form', async () => {
+    const wrapper = await mountHeader(false)
+    const form = wrapper.find('form[role="search"]')
+
+    expect(form.exists()).toBe(true)
+    expect(form.find('input[type="search"]').exists()).toBe(true)
+  })
+
+  it('sends the visitor to the explore page on search', async () => {
+    const wrapper = await mountHeader(false)
+    const push = vi.spyOn(router, 'push')
+
+    await wrapper.find('input[type="search"]').setValue('jazz')
+    await wrapper.find('form[role="search"]').trigger('submit')
+
+    expect(push).toHaveBeenCalledWith({ name: 'events', query: { recherche: 'jazz' } })
+  })
+
+  it('offers sign-in actions to a visitor', async () => {
     const wrapper = await mountHeader(false)
 
-    expect(wrapper.find('nav').attributes('aria-label')).toBe('Navigation principale')
+    await openAccountMenu(wrapper)
+
+    expect(wrapper.text()).toContain('Connexion')
+    expect(wrapper.text()).toContain('Créer un compte')
+    expect(wrapper.text()).not.toContain('Se déconnecter')
+  })
+
+  it('offers the account sections to a signed-in user', async () => {
+    const wrapper = await mountHeader(true)
+
+    await openAccountMenu(wrapper)
+
+    expect(wrapper.text()).toContain('Jean Dupont')
+    expect(wrapper.text()).toContain('Tableau de bord')
+    expect(wrapper.text()).toContain('Se déconnecter')
+    expect(wrapper.text()).not.toContain('Créer un compte')
+  })
+
+  it('falls back to a generic label when the name is empty', async () => {
+    const wrapper = await mountHeader(true, '')
+
+    await openAccountMenu(wrapper)
+
+    expect(wrapper.text()).toContain('Mon compte')
+  })
+
+  it('labels the primary navigation for assistive technology', async () => {
+    const wrapper = await mountHeader(false)
+
+    expect(wrapper.find('form[role="search"]').exists()).toBe(true)
+    expect(wrapper.find('[aria-label="Ouvrir le menu"]').exists()).toBe(true)
   })
 })

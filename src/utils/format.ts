@@ -16,13 +16,19 @@ const currencyFormatter = new Intl.NumberFormat(APP_CONFIG.locale, {
 
 const numberFormatter = new Intl.NumberFormat(APP_CONFIG.locale)
 
-/** Formats an amount in the configured currency, e.g. `5 000 FCFA`. */
+/**
+ * Formats an amount in the configured currency, e.g. `5 000 FCFA`.
+ *
+ * `Intl` spells XOF as « F CFA »; the mockups and local usage write « FCFA »,
+ * so the space inside the symbol is closed up. The thousands separator — a
+ * narrow no-break space in French — is left alone.
+ */
 export function formatPrice(amount: number | string | null | undefined): string {
   const value = typeof amount === 'string' ? Number(amount) : amount
 
   if (value === null || value === undefined || Number.isNaN(value)) return '—'
 
-  return currencyFormatter.format(value)
+  return currencyFormatter.format(value).replace(/F\s*CFA/u, 'FCFA')
 }
 
 export function formatNumber(value: number | null | undefined): string {
@@ -44,6 +50,51 @@ export function formatDate(date: ApiDate | null | undefined): string {
 /** Relative label, e.g. "dans 3 jours". */
 export function formatRelativeDate(date: ApiDate | null | undefined): string {
   return date?.humanDiff ?? '—'
+}
+
+const scheduleDateFormatter = new Intl.DateTimeFormat(APP_CONFIG.locale, {
+  weekday: 'short',
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+})
+
+const scheduleTimeFormatter = new Intl.DateTimeFormat(APP_CONFIG.locale, {
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZone: 'UTC',
+})
+
+/**
+ * Date and time of an event, as the cards show it: `sam. 5 déc. 2026 | 20h00`.
+ *
+ * The time is rendered in UTC rather than in the visitor's own zone: a ticket
+ * is valid at the venue's local time, and Togo is on GMT year-round, so UTC
+ * *is* the local time. Showing a traveller's device time would be actively
+ * misleading. The zone is not spelled out — everyone reading this is on it.
+ *
+ * `human` from the API is not used here because it carries no time.
+ */
+export function formatEventSchedule(date: ApiDate | null | undefined): string {
+  if (!date) return '—'
+
+  const value = new Date(date.datetime)
+  const day = scheduleDateFormatter.format(value)
+  const time = scheduleTimeFormatter.format(value).replace(':', 'h')
+
+  return `${day} | ${time}`
+}
+
+/**
+ * Time of day alone, e.g. `14h32`.
+ *
+ * Read on the same clock as `formatEventSchedule`: UTC, which is Togo's time
+ * all year.
+ */
+export function formatTime(date: ApiDate | null | undefined): string {
+  if (!date) return '—'
+
+  return scheduleTimeFormatter.format(new Date(date.datetime)).replace(':', 'h')
 }
 
 /**

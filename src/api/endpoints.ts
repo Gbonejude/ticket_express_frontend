@@ -75,4 +75,9 @@ export const ENDPOINTS = {
   reviews: {
     create: 'reviews',
   },
+
+  contact: {
+    /** Sends the support form; the backend turns it into an e-mail. */
+    send: 'contact',
+  },
 } as const

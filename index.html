@@ -8,6 +8,33 @@
       name="description"
       content="Ticket Express — achetez vos billets pour les meilleurs événements."
     />
+    <meta name="theme-color" content="#b9000a" />
+
+    <!--
+      One family for the whole interface, as in the Stitch mockups: Hanken
+      Grotesk. It is served from this domain — see src/assets/styles/fonts.css —
+      because the Google Fonts stylesheet was render-blocking and cost 1.2 s
+      before first paint. Icons are inlined SVG, not an icon font; see
+      src/components/ui/icons.ts.
+
+      The two weights that carry almost all the text are preloaded, so the
+      browser fetches them alongside the stylesheet instead of after it.
+    -->
+    <link
+      rel="preload"
+      href="/fonts/hanken-grotesk-400-latin.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="/fonts/hanken-grotesk-700-latin.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+
     <title>Ticket Express</title>
   </head>
   <body>

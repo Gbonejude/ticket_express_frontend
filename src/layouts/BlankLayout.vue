@@ -1,13 +1,18 @@
 <script setup lang="ts">
 import { RouterView } from 'vue-router'
 
-/** Bare layout with no chrome: error pages, payment redirects, print views. */
+/**
+ * Bare layout with no chrome: error pages, payment redirects, print views.
+ *
+ * It still carries the `main` landmark — the skip link in `App.vue` targets
+ * `#main-content`, and without it an error page has no landmark at all.
+ */
 </script>
 
 <template>
-  <div class="blank-layout">
+  <main id="main-content" tabindex="-1" class="blank-layout">
     <RouterView />
-  </div>
+  </main>
 </template>
 
 <style scoped>

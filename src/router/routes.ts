@@ -1,7 +1,9 @@
 import type { RouteRecordRaw } from 'vue-router'
 
+import AccountLayout from '@/layouts/AccountLayout.vue'
 import AuthLayout from '@/layouts/AuthLayout.vue'
 import BlankLayout from '@/layouts/BlankLayout.vue'
+import CheckoutLayout from '@/layouts/CheckoutLayout.vue'
 import DefaultLayout from '@/layouts/DefaultLayout.vue'
 
 /**
@@ -36,7 +38,7 @@ export const routes: RouteRecordRaw[] = [
         path: 'evenements',
         name: 'events',
         component: () => import('@/pages/EventsPage.vue'),
-        meta: { title: 'Événements' },
+        meta: { title: 'Explorer les événements' },
       },
       {
         path: 'evenements/:id',
@@ -46,18 +48,91 @@ export const routes: RouteRecordRaw[] = [
         meta: { title: 'Détail de l’événement' },
       },
 
-      // --- Signed-in area ---
       {
-        path: 'mon-compte',
-        name: 'account',
-        component: () => import('@/pages/AccountPage.vue'),
-        meta: { title: 'Mon compte', requiresAuth: true },
+        path: 'organisateurs/:id',
+        name: 'organizer',
+        component: () => import('@/pages/OrganizerPage.vue'),
+        props: true,
+        meta: { title: 'Organisateur' },
       },
       {
-        path: 'mes-commandes',
+        path: 'qui-sommes-nous',
+        name: 'about',
+        component: () => import('@/pages/AboutPage.vue'),
+        meta: { title: 'Qui sommes-nous' },
+      },
+      {
+        path: 'contact',
+        name: 'contact',
+        component: () => import('@/pages/ContactPage.vue'),
+        meta: { title: 'Contact' },
+      },
+
+      {
+        // Shown after signing out, so it must stay reachable to a visitor.
+        path: 'deconnexion',
+        name: 'logout',
+        component: () => import('@/pages/auth/LogoutPage.vue'),
+        meta: { title: 'Déconnexion' },
+      },
+    ],
+  },
+
+  // --- Checkout (minimal chrome: nothing competes with the payment) ---
+  {
+    path: '/',
+    component: CheckoutLayout,
+    children: [
+      {
+        // Guest checkout is allowed, so this route is deliberately not guarded.
+        path: 'reservation/:eventId',
+        name: 'checkout',
+        component: () => import('@/pages/CheckoutPage.vue'),
+        props: true,
+        meta: { title: 'Paiement sécurisé' },
+      },
+    ],
+  },
+
+  // --- Signed-in area (sidebar navigation) ---
+  {
+    path: '/mon-espace',
+    component: AccountLayout,
+    meta: { requiresAuth: true },
+    children: [
+      {
+        path: '',
+        name: 'dashboard',
+        component: () => import('@/pages/account/DashboardPage.vue'),
+        meta: { title: 'Tableau de bord', requiresAuth: true },
+      },
+      // "Mes billets" is one of the account sidebar entries, so it belongs
+      // inside this layout: leaving it in the public tree dropped the sidebar
+      // the moment the visitor clicked it.
+      {
+        path: 'billets',
+        name: 'tickets',
+        component: () => import('@/pages/tickets/TicketsPage.vue'),
+        meta: { title: 'Mes billets', requiresAuth: true },
+      },
+      {
+        path: 'billets/:id',
+        name: 'ticket-detail',
+        component: () => import('@/pages/tickets/TicketDetailPage.vue'),
+        props: true,
+        meta: { title: 'Mon billet', requiresAuth: true },
+      },
+      {
+        path: 'commandes',
         name: 'orders',
-        component: () => import('@/pages/OrdersPage.vue'),
-        meta: { title: 'Mes commandes', requiresAuth: true },
+        component: () => import('@/pages/account/OrdersPage.vue'),
+        meta: { title: 'Historique des commandes', requiresAuth: true },
+      },
+      {
+        path: 'favoris',
+        name: 'favorites',
+        component: () => import('@/pages/account/FavoritesPage.vue'),
+        meta: { title: 'Mes favoris', requiresAuth: true },
       },
     ],
   },

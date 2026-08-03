@@ -4,7 +4,13 @@ import type { User } from './user'
 
 export type OrderStatus = 'pending' | 'paid' | 'cancelled' | 'refunded' | 'failed'
 export type TicketStatus = 'valid' | 'used' | 'cancelled' | 'refunded'
-export type DeliveryMethod = 'download' | 'email' | 'whatsapp'
+/**
+ * How the buyer receives the ticket.
+ *
+ * `whatsapp` sends a download URL over WhatsApp; `both` sends the e-mail and
+ * the WhatsApp link. `download` is the direct download from the order page.
+ */
+export type DeliveryMethod = 'download' | 'email' | 'whatsapp' | 'both'
 
 /** Mobile-money providers wired to PayGate. */
 export type PaymentMethod = 'FLOOZ' | 'TMONEY'

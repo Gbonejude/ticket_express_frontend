@@ -1,4 +1,5 @@
 import type { ApiDate, Ulid } from './api'
+import type { User } from './user'
 
 /**
  * Domain types mirroring the backend's `V1` API resources.
@@ -45,6 +46,15 @@ export interface Organizer {
   statusLabel: string
   isActive: boolean
   eventsCount?: number
+
+  /**
+   * The account behind the organiser, eager-loaded by `GET /organizers/{id}`.
+   *
+   * This is where the public contact details live — `OrganizerResource` has no
+   * e-mail or phone of its own, it nests `UserResource`. Optional because the
+   * list endpoint does not load it.
+   */
+  user?: User
 }
 
 export interface TicketType {
