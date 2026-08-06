@@ -7,6 +7,7 @@ import { BaseAvatar, BaseDrawer, BaseIcon } from '@/components/ui'
 import { APP_CONFIG } from '@/constants/app'
 import { ACCOUNT_NAV, HEADER_NAV } from '@/constants/navigation'
 import { useAuthStore } from '@/stores/auth.store'
+import { useSearchStore } from '@/stores/search.store'
 
 /**
  * Shell of the signed-in area — the sidebar, top bar and dark footer shared by
@@ -17,6 +18,7 @@ import { useAuthStore } from '@/stores/auth.store'
  * visitor with no way between the four sections.
  */
 const auth = useAuthStore()
+const searchStore = useSearchStore()
 const route = useRoute()
 const router = useRouter()
 
@@ -37,11 +39,16 @@ watch(
   },
 )
 
+/**
+ * Hands the term to the search store, then goes to the explore page.
+ *
+ * The term used to travel as `?recherche=…`; it now goes through the store like
+ * every other search on the site, so the explore page reads it from one place
+ * and the address bar stays `/evenements`.
+ */
 function submitSearch(): void {
-  void router.push({
-    name: 'events',
-    query: search.value.trim() ? { recherche: search.value.trim() } : {},
-  })
+  searchStore.set(search.value.trim())
+  void router.push({ name: 'events' })
 }
 
 const year = new Date().getFullYear()

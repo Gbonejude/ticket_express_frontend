@@ -87,21 +87,60 @@ describe('useApiRequest', () => {
     expect(error.value).toBeNull()
   })
 
-  it('aborts the in-flight request when a newer one starts', async () => {
-    const signals: (AbortSignal | undefined)[] = []
-    const request = vi.fn((signal?: AbortSignal) => {
-      signals.push(signal)
+  it('discards a superseded response instead of letting it overwrite', async () => {
+    // The first call is slower than the second — exactly what happens when a
+    // visitor types into the search box and the earlier query takes longer.
+    const request = vi.fn((value: string) =>
+      value === 'slow'
+        ? new Promise((resolve) => setTimeout(() => resolve('slow result'), 20))
+        : Promise.resolve('fast result'),
+    )
 
-      return new Promise(() => {})
-    })
-    const { execute } = useApiRequest(request)
+    const { data, execute } = useApiRequest(request)
 
-    void execute(undefined)
-    void execute(undefined)
+    const first = execute('slow')
 
-    // The composable owns the controller, so assert on the observable effect:
-    // two calls were started and the first one was superseded.
+    await execute('fast')
+    await first
+
     expect(request).toHaveBeenCalledTimes(2)
+    expect(data.value).toBe('fast result')
+  })
+
+  it('leaves the spinner on when a superseded call finishes late', async () => {
+    const request = vi.fn((value: string) =>
+      value === 'slow'
+        ? new Promise((resolve) => setTimeout(() => resolve('slow'), 20))
+        : new Promise(() => {}),
+    )
+
+    const { isLoading, execute } = useApiRequest(request)
+
+    const first = execute('slow')
+
+    void execute('pending-forever')
+    await first
+
+    // The newer call is still running, so the page must still look busy.
+    expect(isLoading.value).toBe(true)
+  })
+
+  it('does not surface an error from a superseded call', async () => {
+    const request = vi.fn((value: string) =>
+      value === 'slow'
+        ? new Promise((_, reject) => setTimeout(() => reject(new ApiError('trop tard')), 20))
+        : Promise.resolve('fast result'),
+    )
+
+    const { data, error, execute } = useApiRequest(request)
+
+    const first = execute('slow')
+
+    await execute('fast')
+    await first
+
+    expect(error.value).toBeNull()
+    expect(data.value).toBe('fast result')
   })
 
   it('reset clears data, error and loading', async () => {

@@ -5,9 +5,8 @@ import { RouterLink } from 'vue-router'
 import EventCard from '@/components/event/EventCard.vue'
 import { BaseAlert, BaseButton, BaseEmptyState, BaseIcon, BaseSkeleton } from '@/components/ui'
 import { useApiRequest } from '@/composables/useApiRequest'
+import { useFavorites } from '@/composables/useFavorites'
 import { dataSource } from '@/data'
-import { useUiStore } from '@/stores/ui.store'
-import type { Event } from '@/types/event'
 import type { IconName } from '@/components/ui'
 import { eventCover } from '@/utils/event'
 
@@ -25,8 +24,6 @@ import { eventCover } from '@/utils/event'
  */
 const props = defineProps<{ id: string }>()
 
-const ui = useUiStore()
-
 const profile = useApiRequest(dataSource.organizers.get)
 const agenda = useApiRequest(dataSource.organizers.events)
 
@@ -43,16 +40,18 @@ const shown = computed(() => (tab.value === 'past' ? past.value : upcoming.value
 const isLoading = computed(() => profile.isLoading.value || agenda.isLoading.value)
 
 /**
- * The banner falls back to the organiser's next event cover.
+ * The organiser's own logo carries the banner.
  *
- * The API has no banner field on `Organizer` — only a logo — and an empty grey
- * band would read as a broken image. When the backend adds one, this is the
- * single place to change.
+ * It falls back to the cover of their next event, then to the generic hero:
+ * `OrganizerResource` has no dedicated banner field, so a profile without a
+ * logo would otherwise show an empty grey band.
  */
 const banner = computed(() => {
   const source = upcoming.value[0] ?? past.value[0]
 
-  return (source ? eventCover(source) : null) ?? '/mock/hero-accueil.webp'
+  return (
+    organizer.value?.logo ?? (source ? eventCover(source) : null) ?? '/mock/hero-accueil.webp'
+  )
 })
 
 /**
@@ -119,22 +118,12 @@ const channels = computed<Channel[]>(() => {
 const mailChannel = computed(() => channels.value.find((entry) => entry.icon === 'mail') ?? null)
 const phoneChannels = computed(() => channels.value.filter((entry) => entry.icon !== 'mail'))
 
-const favorites = ref<Set<string>>(new Set())
-
-async function toggleFavorite(event: Event): Promise<void> {
-  const { favorited } = await dataSource.favorites.toggle(event.id)
-  const next = new Set(favorites.value)
-
-  if (favorited) next.add(event.id)
-  else next.delete(event.id)
-
-  favorites.value = next
-  ui.notify(favorited ? 'Ajouté à vos favoris.' : 'Retiré de vos favoris.', 'success')
-}
+const favorites = useFavorites()
 
 async function load(id: string): Promise<void> {
   await Promise.all([profile.execute(id), agenda.execute(id)])
-  favorites.value = new Set((await dataSource.favorites.list()).map((event) => event.id))
+
+  void favorites.ensureLoaded()
 }
 
 watch(
@@ -250,7 +239,7 @@ onMounted(() => void load(props.id))
             :event="event"
             :is-favorite="favorites.has(event.id)"
             compact
-            @toggle-favorite="toggleFavorite"
+            @toggle-favorite="favorites.toggle"
           />
         </div>
       </section>
@@ -459,7 +448,9 @@ onMounted(() => void load(props.id))
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--space-gutter);
-  max-width: 56rem;
+  /* Three columns need the room; 56rem capped it at two however wide the
+     viewport was. */
+  max-width: 80rem;
   margin-inline: auto;
 }
 
@@ -599,6 +590,12 @@ a.channel:hover {
     grid-template-columns: repeat(2, 1fr);
     align-items: start;
   }
+
+  /* Two columns on a tablet; the third only appears at 768px, where the cards
+     still have room to breathe. */
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 @media (width >= 768px) {
@@ -614,7 +611,7 @@ a.channel:hover {
   }
 
   .grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: var(--space-10);
   }
 }

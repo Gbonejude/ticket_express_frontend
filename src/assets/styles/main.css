@@ -6,6 +6,9 @@
 @import './fonts.css';
 @import './tokens.css';
 @import './base.css';
+/* SweetAlert2 renders the toasts; its sheet is imported here so the overrides
+   further down win on specificity without `!important`. */
+@import 'sweetalert2/dist/sweetalert2.min.css';
 
 /* --- Typography roles -------------------------------------------------------
    The mockups apply a size/weight/tracking triplet through a Tailwind class
@@ -169,4 +172,100 @@
 
 .page-leave-to {
   opacity: 0;
+}
+
+/* --- Toasts (SweetAlert2) ----------------------------------------------------
+   SweetAlert brings its own palette and Roboto stack. These rules put it back
+   on the site's tokens so a toast looks like the rest of the interface rather
+   than like a library dropped on top of it. */
+
+.swal2-container.swal2-top-end {
+  padding: var(--space-4);
+  z-index: var(--z-toast);
+}
+
+/* The gap is set per axis, never as a shorthand. SweetAlert lays the toast out
+   as a grid whose icon, loader and close button each span `grid-row: 1 / 99` —
+   so the popup really has 98 rows, and a row gap of 0.75rem added ~1 160px of
+   empty space, stretching the toast from the top of the page to below the fold.
+   Only the column gap between icon and text is wanted. */
+.te-toast.swal2-popup {
+  column-gap: var(--space-3);
+  row-gap: 0;
+  max-width: min(20rem, calc(100vw - var(--space-8)));
+  padding: var(--space-4);
+  font-family: inherit;
+  background-color: var(--color-surface-container-lowest);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+
+.te-toast__title.swal2-title {
+  padding: 0;
+  color: var(--color-on-surface);
+  font-size: var(--text-body-sm);
+  font-weight: 500;
+  line-height: 1.45;
+  text-align: start;
+}
+
+/* The icon carries the meaning, so it takes the semantic colour and the popup
+   stays neutral — a red-on-red error toast is unreadable. */
+.te-toast .swal2-icon {
+  width: 1.75rem;
+  min-width: 1.75rem;
+  height: 1.75rem;
+  margin: 0;
+  border-width: 2px;
+}
+
+.te-toast .swal2-icon .swal2-icon-content {
+  font-size: 1.1rem;
+}
+
+.te-toast .swal2-icon.swal2-success {
+  color: var(--color-success);
+  border-color: var(--color-success);
+}
+
+.te-toast .swal2-icon.swal2-success [class^='swal2-success-line'] {
+  background-color: var(--color-success);
+}
+
+.te-toast .swal2-icon.swal2-success .swal2-success-ring {
+  border-color: color-mix(in srgb, var(--color-success) 35%, transparent);
+}
+
+.te-toast .swal2-icon.swal2-error {
+  color: var(--color-error);
+  border-color: var(--color-error);
+}
+
+.te-toast .swal2-icon.swal2-error [class^='swal2-x-mark-line'] {
+  background-color: var(--color-error);
+}
+
+.te-toast .swal2-icon.swal2-warning {
+  color: var(--color-secondary);
+  border-color: var(--color-secondary);
+}
+
+.te-toast .swal2-icon.swal2-info {
+  color: var(--color-tertiary);
+  border-color: var(--color-tertiary);
+}
+
+.te-toast__progress.swal2-timer-progress-bar {
+  background-color: var(--color-outline-variant);
+}
+
+.te-toast .swal2-close {
+  color: var(--color-on-surface-variant);
+  font-size: 1.5rem;
+}
+
+.te-toast .swal2-close:focus-visible {
+  outline: 2px solid var(--color-focus);
+  box-shadow: none;
 }

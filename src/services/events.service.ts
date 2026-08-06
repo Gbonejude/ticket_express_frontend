@@ -1,6 +1,6 @@
 import { ENDPOINTS, getList, getOne, post } from '@/api'
 import type { Paginated, Ulid } from '@/types/api'
-import type { Event, EventListQuery, EventOccurrence, Review, TicketType } from '@/types/event'
+import type { Event, EventListQuery, EventOccurrence, TicketType } from '@/types/event'
 
 /**
  * Read access to the public event catalogue.
@@ -27,11 +27,6 @@ export const eventsService = {
   /** Dates of a recurring event. */
   occurrences(eventId: Ulid, signal?: AbortSignal): Promise<Paginated<EventOccurrence>> {
     return getList<EventOccurrence>(ENDPOINTS.events.occurrences(eventId), { signal })
-  },
-
-  /** Public reviews of an event. */
-  reviews(eventId: Ulid, page = 1, signal?: AbortSignal): Promise<Paginated<Review>> {
-    return getList<Review>(ENDPOINTS.events.reviews(eventId), { params: { page }, signal })
   },
 
   /** Adds or removes the event from the signed-in user's favourites. */

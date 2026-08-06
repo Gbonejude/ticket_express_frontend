@@ -5,7 +5,12 @@ import { BaseAvatar } from '@/components/ui'
 import type { Organizer } from '@/types/event'
 
 /**
- * Tile of the "Organisateurs vedettes" grid: round portrait, name, event count.
+ * Tile of an organiser: round portrait, name, event count.
+ *
+ * It leads to the organiser's public profile. It used to point at
+ * `/evenements?organisateur=<id>` — a parameter the explore page never read, so
+ * the link only dirtied the address bar, which is precisely what filtering in
+ * the browser is meant to avoid.
  *
  * `featured` draws the red ring the mockup puts on the first entry.
  */
@@ -16,7 +21,7 @@ withDefaults(defineProps<{ organizer: Organizer; featured?: boolean }>(), { feat
   <RouterLink
     class="organizer"
     :class="{ 'organizer--featured': featured }"
-    :to="{ name: 'events', query: { organisateur: organizer.id } }"
+    :to="{ name: 'organizer', params: { id: organizer.id } }"
   >
     <span class="organizer__portrait">
       <BaseAvatar

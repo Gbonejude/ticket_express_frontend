@@ -20,22 +20,35 @@ export function useApiRequest<TResult, TArgs extends unknown[] = []>(
   const error = ref<ApiError | null>(null)
   const isLoading = ref(false)
 
-  /** In-flight request, aborted when a newer call supersedes it. */
-  let controller: AbortController | null = null
+  /**
+   * Sequence number of the most recent call.
+   *
+   * Only the latest call may write `data`, `error` or `isLoading`. Without this
+   * a slow request can resolve after a newer one and overwrite it — type "jazz"
+   * into the search box and the results for "jaz" land last. The composable
+   * cannot cancel the HTTP request itself, because it does not know where in a
+   * caller's argument list the signal belongs, so it discards the answer
+   * instead. Services that want true cancellation take an `AbortSignal` and
+   * are called with one directly.
+   */
+  let latest = 0
 
   /**
    * Runs the request. Returns the result, or `null` if it failed or was
    * superseded — check `error` to tell the two apart.
    */
   async function execute(...args: TArgs): Promise<TResult | null> {
-    controller?.abort()
-    controller = new AbortController()
+    latest += 1
+
+    const current = latest
 
     isLoading.value = true
     error.value = null
 
     try {
       const result = await request(...args)
+
+      if (current !== latest) return null
 
       data.value = result
 
@@ -44,18 +57,18 @@ export function useApiRequest<TResult, TArgs extends unknown[] = []>(
       const apiError = normalizeError(caught)
 
       // A cancelled request was replaced by a newer one; not a failure to show.
-      if (!apiError.isCanceled) error.value = apiError
+      if (current === latest && !apiError.isCanceled) error.value = apiError
 
       return null
     } finally {
-      isLoading.value = false
+      // A superseded call must not clear the spinner the newer one turned on.
+      if (current === latest) isLoading.value = false
     }
   }
 
-  /** Aborts any in-flight request and resets the state. */
+  /** Discards any in-flight request and resets the state. */
   function reset(): void {
-    controller?.abort()
-    controller = null
+    latest += 1
     data.value = null
     error.value = null
     isLoading.value = false

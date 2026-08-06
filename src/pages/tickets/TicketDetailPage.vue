@@ -4,6 +4,7 @@ import { computed, onMounted, watch } from 'vue'
 import { BaseAlert, BaseBadge, BaseButton, BaseIcon, BaseSkeleton } from '@/components/ui'
 import { useApiRequest } from '@/composables/useApiRequest'
 import { dataSource } from '@/data'
+import { pdfDownloadUrl, qrImageUrl } from '@/services'
 import { useUiStore } from '@/stores/ui.store'
 import { eventCover } from '@/utils/event'
 import { formatPrice } from '@/utils/format'
@@ -49,8 +50,51 @@ const dateParts = computed(() => {
   }
 })
 
-function notImplemented(what: string): void {
-  ui.notify(`${what} sera disponible une fois l'API branchée.`, 'info')
+/**
+ * The QR image and the PDF are served by token-authenticated public routes, so
+ * they are plain URLs the browser fetches on its own — no bearer header, and
+ * nothing for this page to proxy.
+ */
+const qrUrl = computed(() => (row.data.value ? qrImageUrl(row.data.value) : null))
+const pdfUrl = computed(() => (order.value ? pdfDownloadUrl(order.value) : null))
+
+/** WhatsApp hand-off, prefilled by the backend with the download link. */
+const whatsappUrl = computed(() => order.value?.downloads?.whatsappLink ?? null)
+
+/**
+ * Shares the ticket through the OS sheet, falling back to the clipboard.
+ *
+ * What is shared is the download link, not the current URL: `/mon-espace` is
+ * behind a guard, so a recipient following it would land on a login form.
+ */
+async function share(): Promise<void> {
+  const url = pdfUrl.value
+
+  if (!url) {
+    ui.notify('Le lien de téléchargement a expiré.', 'warning')
+
+    return
+  }
+
+  const title = `Mon billet — ${event.value?.title ?? 'Ticket Express'}`
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ title, url })
+
+      return
+    } catch {
+      // Cancelling the sheet is not an error, and neither is a browser that
+      // advertises the API but refuses it; fall through to the clipboard.
+    }
+  }
+
+  try {
+    await navigator.clipboard.writeText(url)
+    ui.notify('Lien du billet copié.', 'success')
+  } catch {
+    ui.notify('Partage impossible sur cet appareil.', 'error')
+  }
 }
 
 watch(
@@ -93,9 +137,29 @@ onMounted(() => {
         <div class="pass__content">
           <!-- QR -->
           <div class="qr">
-            <img class="qr__image" src="/mock/qr-code.webp" alt="" aria-hidden="true" />
+            <img
+              v-if="qrUrl"
+              class="qr__image"
+              :src="qrUrl"
+              :alt="`QR code du billet ${ticket.ticketNumber}`"
+            />
+            <!-- An online ticket carries an access link instead of a QR code,
+                 and a lapsed download link leaves neither. -->
+            <p v-else class="qr__missing">
+              {{
+                ticket.isOnlineAccess
+                  ? 'Ce billet donne accès à un événement en ligne : utilisez le lien ci-dessous.'
+                  : 'QR code indisponible — le lien de téléchargement a expiré.'
+              }}
+            </p>
             <p class="qr__id">ID : {{ ticket.ticketNumber }}</p>
           </div>
+
+          <BaseAlert v-if="ticket.onlineAccessLink" variant="info" title="Accès en ligne">
+            <a :href="ticket.onlineAccessLink" target="_blank" rel="noopener noreferrer">
+              Rejoindre l'événement
+            </a>
+          </BaseAlert>
 
           <!-- Event details -->
           <div class="details">
@@ -159,21 +223,33 @@ onMounted(() => {
       </article>
 
       <div class="actions">
+        <!-- A real link, not a fetch: the endpoint answers with the PDF and the
+             token is in the URL, so the browser downloads it directly. -->
         <BaseButton
+          v-if="pdfUrl"
           block
           size="lg"
+          :href="pdfUrl"
           icon-start="picture_as_pdf"
-          @click="notImplemented('Le téléchargement PDF')"
         >
           Télécharger PDF
         </BaseButton>
+        <BaseAlert v-else variant="warning" title="Téléchargement indisponible">
+          Le lien de téléchargement de cette commande a expiré ou atteint sa limite.
+        </BaseAlert>
+
         <BaseButton
+          v-if="whatsappUrl"
           block
           size="lg"
           variant="outline"
-          icon-start="send"
-          @click="notImplemented('Le partage')"
+          :href="whatsappUrl"
+          icon-start="chat"
         >
+          Envoyer sur WhatsApp
+        </BaseButton>
+
+        <BaseButton block size="lg" variant="outline" icon-start="send" @click="share">
           Partager le billet
         </BaseButton>
         <BaseButton block variant="ghost" :to="{ name: 'tickets' }" icon-start="arrow_back">

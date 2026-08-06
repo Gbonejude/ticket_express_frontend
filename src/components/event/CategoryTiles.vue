@@ -28,7 +28,7 @@ const iconFor = (slug: string) => CATEGORY_ICONS[slug] ?? CATEGORY_FALLBACK_ICON
 
 /** Sum across all categories, shown on the "Toutes" tile. */
 const totalCount = computed(() =>
-  props.categories.reduce((total, category) => total + (category.eventsCount ?? 0), 0),
+  props.categories.reduce((total, category) => total + (category.upcomingEventsCount ?? 0), 0),
 )
 
 const track = ref<HTMLElement | null>(null)
@@ -117,8 +117,8 @@ function scrollBy(direction: -1 | 1): void {
       >
         <BaseIcon class="tile__icon" :name="iconFor(category.slug)" :size="28" />
         <span class="tile__label">{{ category.name }}</span>
-        <span v-if="category.eventsCount !== undefined" class="tile__count">
-          {{ category.eventsCount }} {{ category.eventsCount > 1 ? 'événements' : 'événement' }}
+        <span v-if="category.upcomingEventsCount !== undefined" class="tile__count">
+          {{ category.upcomingEventsCount }} {{ category.upcomingEventsCount > 1 ? 'événements' : 'événement' }}
         </span>
       </button>
     </div>

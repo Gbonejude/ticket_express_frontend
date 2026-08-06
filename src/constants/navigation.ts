@@ -44,15 +44,19 @@ export const HEADER_NAV: NavItem[] = [
  */
 export const CATEGORY_ICONS: Record<string, IconName> = {
   concert: 'music_note',
-  culture: 'palette',
-  formation: 'school',
-  soiree: 'wine_bar',
-  tourisme: 'map',
-  sport: 'fitness_center',
   festival: 'festival',
+  culture: 'palette',
+  theatre: 'theater_comedy',
+  sport: 'sports_soccer',
+  formation: 'school',
+  conference: 'group',
+  soiree: 'wine_bar',
+  gastronomie: 'restaurant',
+  tourisme: 'map',
   science: 'science',
   religieux: 'church',
-  gastronomie: 'restaurant',
+  cinema: 'videocam',
+  business: 'business_center',
 }
 
 export const CATEGORY_FALLBACK_ICON: IconName = 'local_activity'
@@ -68,6 +72,7 @@ export const FOOTER_COLUMNS: FooterColumn[] = [
     links: [
       { label: 'Qui sommes-nous ?', to: { name: 'about' } },
       { label: 'Tous les événements', to: { name: 'events' } },
+      { label: 'Devenir organisateur', to: { name: 'become-organizer' } },
       { label: 'Nous contacter', to: { name: 'contact' } },
     ],
   },
@@ -87,4 +92,6 @@ export const ACCOUNT_NAV: NavItem[] = [
   { label: 'Mes billets', route: 'tickets', icon: 'confirmation_number' },
   { label: 'Historique', route: 'orders', icon: 'history' },
   { label: 'Favoris', route: 'favorites', icon: 'favorite' },
+  { label: 'Notifications', route: 'notifications', icon: 'notifications' },
+  { label: 'Mon profil', route: 'profile', icon: 'account_circle' },
 ]

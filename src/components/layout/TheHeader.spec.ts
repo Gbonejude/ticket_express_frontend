@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { createMemoryHistory, createRouter } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth.store'
+import { useSearchStore } from '@/stores/search.store'
 
 import TheHeader from './TheHeader.vue'
 
@@ -21,14 +22,17 @@ const router = createRouter({
     { path: '/mon-espace/billets', name: 'tickets', component: Blank },
     { path: '/mon-espace/commandes', name: 'orders', component: Blank },
     { path: '/mon-espace/favoris', name: 'favorites', component: Blank },
+    { path: '/mon-espace/notifications', name: 'notifications', component: Blank },
+    { path: '/mon-espace/profil', name: 'profile', component: Blank },
+    { path: '/devenir-organisateur', name: 'become-organizer', component: Blank },
     { path: '/connexion', name: 'login', component: Blank },
     { path: '/inscription', name: 'register', component: Blank },
   ],
 })
 
 /** Mounts the header with a router and a store seeded to the given session. */
-async function mountHeader(signedIn: boolean, fullName = 'Jean Dupont') {
-  await router.push('/')
+async function mountHeader(signedIn: boolean, fullName = 'Jean Dupont', at = '/') {
+  await router.push(at)
   await router.isReady()
 
   const wrapper = mount(TheHeader, {
@@ -65,14 +69,31 @@ describe('TheHeader', () => {
     expect(form.find('input[type="search"]').exists()).toBe(true)
   })
 
-  it('sends the visitor to the explore page on search', async () => {
+  it('filters in place when the page already lists events', async () => {
+    // On the home page the visitor is already looking at events; sending them
+    // somewhere else to ask the same question is the behaviour that was wrong.
     const wrapper = await mountHeader(false)
     const push = vi.spyOn(router, 'push')
 
     await wrapper.find('input[type="search"]').setValue('jazz')
     await wrapper.find('form[role="search"]').trigger('submit')
 
-    expect(push).toHaveBeenCalledWith({ name: 'events', query: { recherche: 'jazz' } })
+    expect(push).not.toHaveBeenCalled()
+    // Pinia's testing plugin stubs actions, so the contract asserted here is
+    // the call the header makes, not the state the store would reach.
+    expect(useSearchStore().set).toHaveBeenCalledWith('jazz')
+  })
+
+  it('hands over to the explore page from a page with nothing to filter', async () => {
+    const wrapper = await mountHeader(false, 'Jean Dupont', '/contact')
+    const push = vi.spyOn(router, 'push')
+
+    await wrapper.find('input[type="search"]').setValue('jazz')
+    await wrapper.find('form[role="search"]').trigger('submit')
+
+    // No query string: the term travels in the store, not the URL.
+    expect(push).toHaveBeenCalledWith({ name: 'events' })
+    expect(useSearchStore().set).toHaveBeenCalledWith('jazz')
   })
 
   it('offers sign-in actions to a visitor', async () => {

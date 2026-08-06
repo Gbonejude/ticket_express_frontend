@@ -2,35 +2,71 @@
 import { computed, onMounted, ref } from 'vue'
 
 import EventCard from '@/components/event/EventCard.vue'
-import { BaseAlert, BaseButton, BaseEmptyState, BaseSkeleton } from '@/components/ui'
+import { BaseAlert, BaseBadge, BaseButton, BaseEmptyState, BaseSkeleton } from '@/components/ui'
 import { useApiRequest } from '@/composables/useApiRequest'
 import { dataSource } from '@/data'
+import { displayStatus, isActive, TICKET_STATUS_LABELS } from '@/services'
+import type { TicketDisplayStatus } from '@/services'
+import type { Event } from '@/types/event'
 
 /**
  * Ticket list — Stitch screen « Liste de mes billets ».
  *
- * Split into "À venir" and "Passés" on the event's date rather than on the
- * ticket's status: a ticket for last month is still `valid`, but it belongs in
- * the history, not at the top of the list.
+ * Three tabs, because the backend models three different things:
+ *  - "À venir" — issued tickets still usable (`valid`, event not over);
+ *  - "Passés"  — used, cancelled, refunded, or whose event has ended;
+ *  - "En attente" — orders whose payment has not gone through, which have no
+ *    tickets issued against them yet.
  */
-const rows = useApiRequest(dataSource.tickets.list)
+// One request for both halves: issued tickets and unpaid orders come out of
+// the same order list.
+const overview = useApiRequest(dataSource.tickets.overview)
 
-const tab = ref<'upcoming' | 'past'>('upcoming')
+const tab = ref<'upcoming' | 'past' | 'pending'>('upcoming')
 
-const now = Date.now()
-
-const upcoming = computed(() =>
-  (rows.data.value ?? []).filter((row) => Date.parse(row.event.startDate?.datetime ?? '') >= now),
+/**
+ * The card needs an event to render, so rows are narrowed to those that carry
+ * one. In practice every row does — `GET /orders` eager-loads the event behind
+ * each ticket — and the guard exists for the case where the event was deleted
+ * after the ticket was issued.
+ */
+const resolved = computed(() =>
+  (overview.data.value?.rows ?? []).filter(
+    (row): row is typeof row & { event: Event } => row.event !== null,
+  ),
 )
 
-const past = computed(() =>
-  (rows.data.value ?? []).filter((row) => Date.parse(row.event.startDate?.datetime ?? '') < now),
+const upcoming = computed(() => resolved.value.filter(isActive))
+const past = computed(() => resolved.value.filter((row) => !isActive(row)))
+
+const awaiting = computed(() =>
+  (overview.data.value?.pending ?? []).filter(
+    (row): row is typeof row & { event: Event } => row.event !== null,
+  ),
 )
 
 const shown = computed(() => (tab.value === 'upcoming' ? upcoming.value : past.value))
 
+const isLoading = computed(() => overview.isLoading.value)
+
+/** Badge colour per state, so a refund never looks like a valid ticket. */
+const STATUS_VARIANTS: Record<TicketDisplayStatus, 'success' | 'neutral' | 'warning' | 'danger'> = {
+  valid: 'success',
+  used: 'neutral',
+  expired: 'neutral',
+  cancelled: 'danger',
+  refunded: 'warning',
+  pending: 'warning',
+}
+
+const EMPTY_STATES = {
+  upcoming: 'Aucun billet à venir',
+  past: 'Aucun événement passé',
+  pending: 'Aucune commande en attente',
+} as const
+
 onMounted(() => {
-  void rows.execute()
+  void overview.execute()
 })
 </script>
 
@@ -68,20 +104,48 @@ onMounted(() => {
       >
         Passés ({{ past.length }})
       </button>
+      <button
+        v-if="awaiting.length > 0"
+        class="tabs__tab"
+        :class="{ 'tabs__tab--active': tab === 'pending' }"
+        type="button"
+        role="tab"
+        :aria-selected="tab === 'pending'"
+        @click="tab = 'pending'"
+      >
+        En attente ({{ awaiting.length }})
+      </button>
     </div>
 
-    <BaseAlert v-if="rows.error.value" variant="error" title="Chargement impossible">
-      {{ rows.error.value.message }}
+    <BaseAlert v-if="overview.error.value" variant="error" title="Chargement impossible">
+      {{ overview.error.value.message }}
     </BaseAlert>
 
-    <div v-else-if="rows.isLoading.value" class="tickets__list">
+    <div v-else-if="isLoading" class="tickets__list">
       <BaseSkeleton v-for="index in 3" :key="index" variant="block" height="12rem" />
+    </div>
+
+    <!-- Orders still awaiting payment: no ticket has been issued yet. -->
+    <div v-else-if="tab === 'pending'" class="tickets__list">
+      <EventCard
+        v-for="row in awaiting"
+        :key="row.order.id"
+        :event="row.event"
+        :show-favorite="false"
+        cta-label="Finaliser le paiement"
+        :cta-to="{ name: 'checkout', params: { id: row.event?.id ?? '' } }"
+      >
+        <template #footer>
+          <span class="ticket-ref">Réf. {{ row.order.orderNumber }}</span>
+          <BaseBadge variant="warning">{{ TICKET_STATUS_LABELS.pending }}</BaseBadge>
+        </template>
+      </EventCard>
     </div>
 
     <BaseEmptyState
       v-else-if="shown.length === 0"
       icon="confirmation_number"
-      :title="tab === 'upcoming' ? 'Aucun billet à venir' : 'Aucun événement passé'"
+      :title="EMPTY_STATES[tab]"
       description="Vos billets apparaîtront ici dès votre première commande."
     >
       <template #action>
@@ -103,6 +167,9 @@ onMounted(() => {
           <span class="ticket-ref">
             {{ row.ticket.ticketType?.name ?? 'Billet' }} • {{ row.ticket.ticketNumber }}
           </span>
+          <BaseBadge :variant="STATUS_VARIANTS[displayStatus(row)]">
+            {{ TICKET_STATUS_LABELS[displayStatus(row)] }}
+          </BaseBadge>
         </template>
       </EventCard>
     </div>

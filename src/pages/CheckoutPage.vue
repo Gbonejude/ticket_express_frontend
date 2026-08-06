@@ -2,13 +2,17 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import { ApiError } from '@/api'
 import { BaseAlert, BaseButton, BaseIcon, BaseSkeleton } from '@/components/ui'
 import { useApiRequest } from '@/composables/useApiRequest'
 import { dataSource } from '@/data'
 import { useAuthStore } from '@/stores/auth.store'
+import { useCatalogStore } from '@/stores/catalog.store'
 import { useUiStore } from '@/stores/ui.store'
+import { couponsService, discountFor } from '@/services'
+import type { CouponValidation } from '@/services'
 import { formatEventSchedule, formatPrice } from '@/utils/format'
-import type { PaymentMethod } from '@/types/order'
+import type { PaymentMethod, PaymentStatus } from '@/types/order'
 
 /**
  * Checkout — Stitch screen « Paiement (Style Tikerama) ».
@@ -26,6 +30,7 @@ const props = defineProps<{ eventId: string }>()
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const catalog = useCatalogStore()
 const ui = useUiStore()
 
 const detail = useApiRequest(dataSource.events.get)
@@ -37,6 +42,9 @@ const country = ref('Togo')
 const method = ref<PaymentMethod>('TMONEY')
 const acceptsTerms = ref(false)
 const isPaying = ref(false)
+
+/** Why the last attempt did not go through; shown above the pay button. */
+const paymentNotice = ref<string | null>(null)
 
 /**
  * Buyer details.
@@ -105,9 +113,52 @@ const lines = computed(() => {
     .filter((line): line is NonNullable<typeof line> => line !== null)
 })
 
-const total = computed(() =>
+const subtotal = computed(() =>
   lines.value.reduce((sum, line) => sum + line.ticketType.currentPrice * line.quantity, 0),
 )
+
+// --- Promo code ---------------------------------------------------------------
+
+const couponCode = ref('')
+const coupon = ref<CouponValidation | null>(null)
+const couponError = ref<string | null>(null)
+const isCheckingCoupon = ref(false)
+
+/**
+ * What the code takes off, or 0 when none is applied.
+ *
+ * Shown for the buyer's benefit only: `POST /orders` recomputes it from
+ * `coupon_code`, and the server's figure is the one that is charged.
+ */
+const discount = computed(() => (coupon.value ? discountFor(coupon.value, subtotal.value) : 0))
+
+const total = computed(() => Math.max(subtotal.value - discount.value, 0))
+
+async function applyCoupon(): Promise<void> {
+  const code = couponCode.value.trim()
+
+  if (!code) return
+
+  isCheckingCoupon.value = true
+  couponError.value = null
+
+  try {
+    coupon.value = await couponsService.validate(code, props.eventId)
+  } catch (error) {
+    coupon.value = null
+    // The API already answers in French — "Ce code promo a expiré", "…ne
+    // s'applique pas à cet événement" — so its wording is shown as-is.
+    couponError.value = error instanceof ApiError ? error.message : 'Code promo invalide.'
+  } finally {
+    isCheckingCoupon.value = false
+  }
+}
+
+function clearCoupon(): void {
+  coupon.value = null
+  couponCode.value = ''
+  couponError.value = null
+}
 
 const countdown = computed(() => {
   const minutes = Math.floor(secondsLeft.value / 60)
@@ -151,10 +202,45 @@ const canPay = computed(
   () => acceptsTerms.value && isBuyerComplete.value && lines.value.length > 0 && !isPaying.value,
 )
 
+/**
+ * Waits for PayGate to settle a payment.
+ *
+ * `initiate` only pushes the USSD prompt to the payer's phone; what decides the
+ * outcome is the webhook PayGate calls on the backend once they enter their
+ * PIN. So the front polls `payments/{id}/status` until the payment leaves
+ * `pending`, rather than treating the initiate response as a receipt.
+ *
+ * Giving up after the deadline is not a failure: the payment may still clear
+ * afterwards, which is why the caller sends the visitor to their orders instead
+ * of telling them it was refused.
+ */
+const POLL_INTERVAL_MS = 3000
+const POLL_TIMEOUT_MS = 120_000
+
+async function waitForPayment(paymentId: string): Promise<PaymentStatus> {
+  const deadline = Date.now() + POLL_TIMEOUT_MS
+
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+
+    try {
+      const payment = await dataSource.payments.status(paymentId)
+
+      if (payment.status !== 'pending') return payment.status
+    } catch {
+      // A single failed poll is not an outcome — the webhook may simply not
+      // have landed yet. Keep waiting until the deadline.
+    }
+  }
+
+  return 'pending'
+}
+
 async function pay(): Promise<void> {
   if (!canPay.value || !event.value) return
 
   isPaying.value = true
+  paymentNotice.value = null
 
   try {
     const order = await dataSource.orders.create({
@@ -167,18 +253,48 @@ async function pay(): Promise<void> {
         ticket_type_id: line.ticketType.id,
         quantity: line.quantity,
       })),
+      // The server re-validates the code and recomputes the discount; what was
+      // shown in the summary is only a preview.
+      coupon_code: coupon.value?.coupon.code,
     })
 
-    await dataSource.payments.initiate({
+    const payment = await dataSource.payments.initiate({
       order_id: order.id,
-      method: method.value,
+      network: method.value,
       phone_number: buyer.value.phone.trim(),
     })
 
-    ui.notify(`Commande ${order.orderNumber} confirmée.`, 'success')
-    await router.push({ name: 'tickets' })
-  } catch {
-    ui.notify('Le paiement a échoué. Aucun montant n’a été débité.', 'error')
+    // The order exists from here on: stopping the countdown avoids yanking the
+    // visitor back to the event page while they confirm on their phone.
+    window.clearInterval(timer)
+
+    const status = payment.status === 'pending' ? await waitForPayment(payment.id) : payment.status
+
+    if (status === 'success') {
+      // The tiers just lost stock, so the cached catalogue the explore page
+      // filters over is now wrong. Dropping it makes the next visit refetch.
+      catalog.resetEvents()
+
+      ui.notify(`Commande ${order.orderNumber} confirmée.`, 'success')
+      await router.push({ name: 'tickets' })
+
+      return
+    }
+
+    if (status === 'pending') {
+      ui.notify('Paiement toujours en attente de confirmation.', 'warning')
+      await router.push({ name: 'orders' })
+
+      return
+    }
+
+    paymentNotice.value =
+      'Le paiement a été refusé ou annulé. Aucun montant n’a été débité. Vous pouvez réessayer.'
+  } catch (error) {
+    // Surface the API's own wording — "Stock insuffisant pour VIP", a 422 on the
+    // buyer's phone number — instead of a blanket "échec" that hides the cause.
+    paymentNotice.value =
+      error instanceof ApiError ? error.message : 'Le paiement a échoué. Veuillez réessayer.'
   } finally {
     isPaying.value = false
   }
@@ -246,6 +362,51 @@ onBeforeUnmount(() => window.clearInterval(timer))
           </p>
 
           <hr class="summary__rule" />
+
+          <!-- Promo code: checked against the API before the order is placed,
+               so the buyer sees the new total rather than discovering it on
+               the receipt. -->
+          <div class="promo">
+            <template v-if="coupon">
+              <p class="promo__applied">
+                <span>
+                  <BaseIcon name="check_circle" :size="16" />
+                  Code {{ coupon.coupon.code }}
+                </span>
+                <button class="promo__remove" type="button" @click="clearCoupon">Retirer</button>
+              </p>
+            </template>
+
+            <template v-else>
+              <label class="visually-hidden" for="promo-code">Code promo</label>
+              <div class="promo__row">
+                <input
+                  id="promo-code"
+                  v-model="couponCode"
+                  class="promo__input"
+                  type="text"
+                  placeholder="Code promo"
+                  autocomplete="off"
+                  @keydown.enter.prevent="applyCoupon"
+                />
+                <BaseButton
+                  variant="outline"
+                  size="sm"
+                  :loading="isCheckingCoupon"
+                  :disabled="!couponCode.trim()"
+                  @click="applyCoupon"
+                >
+                  Appliquer
+                </BaseButton>
+              </div>
+              <p v-if="couponError" class="promo__error">{{ couponError }}</p>
+            </template>
+          </div>
+
+          <p v-if="discount > 0" class="summary__line summary__line--discount">
+            <span>Réduction</span>
+            <span>−{{ formatPrice(discount) }}</span>
+          </p>
 
           <p class="summary__total">
             <span class="t-headline-md">Total</span>
@@ -401,6 +562,16 @@ onBeforeUnmount(() => window.clearInterval(timer))
               J'accepte les conditions générales de vente et la politique de confidentialité
             </span>
           </label>
+
+          <BaseAlert v-if="paymentNotice" variant="error" title="Paiement non abouti">
+            {{ paymentNotice }}
+          </BaseAlert>
+
+          <!-- The USSD prompt lands on the payer's phone; without saying so, a
+               spinner that runs for a minute reads as a frozen page. -->
+          <p v-if="isPaying" class="pay-hint">
+            Confirmez le paiement sur votre téléphone. Ne fermez pas cette page.
+          </p>
 
           <BaseButton
             block
@@ -855,6 +1026,70 @@ onBeforeUnmount(() => window.clearInterval(timer))
   .payment__methods {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+.pay-hint {
+  color: var(--color-on-surface-variant);
+  font-size: var(--text-body-sm);
+  text-align: center;
+}
+
+/* --- Promo code --- */
+.promo {
+  margin-block: var(--space-4);
+}
+
+.promo__row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.promo__input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-md);
+}
+
+.promo__input:focus {
+  border-color: var(--color-focus);
+  outline: none;
+}
+
+.promo__applied {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-success, var(--color-primary));
+  background-color: var(--color-surface-variant);
+  border-radius: var(--radius-md);
+  font-weight: 700;
+}
+
+.promo__applied span {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.promo__remove {
+  color: var(--color-on-surface-variant);
+  font-size: var(--text-body-sm);
+  text-decoration: underline;
+}
+
+.promo__error {
+  margin-block-start: var(--space-2);
+  color: var(--color-error);
+  font-size: var(--text-body-sm);
+}
+
+.summary__line--discount {
+  color: var(--color-success, var(--color-primary));
+  font-weight: 700;
 }
 
 @media (width >= 1024px) {

@@ -1,3 +1,6 @@
 export { useAuthStore } from './auth.store'
+export { useCatalogStore } from './catalog.store'
+export { useFavoritesStore } from './favorites.store'
+export { useNotificationsStore } from './notifications.store'
 export { useUiStore } from './ui.store'
-export type { Toast, ToastVariant } from './ui.store'
+export type { ToastVariant } from './ui.store'

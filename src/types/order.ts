@@ -118,6 +118,6 @@ export interface CreateOrderPayload {
 /** Body for `POST /payments/initiate`. */
 export interface InitiatePaymentPayload {
   order_id: Ulid
-  method: PaymentMethod
+  network: PaymentMethod
   phone_number: string
 }

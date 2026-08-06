@@ -4,6 +4,7 @@ import type {
   LoginPayload,
   MeResponse,
   RegisterClientPayload,
+  ResetPasswordPayload,
   VerifyOtpResult,
 } from '@/types/user'
 
@@ -53,6 +54,14 @@ export const authService = {
   /** Emails a password reset link. */
   forgotPassword(email: string): Promise<string> {
     return postForMessage(ENDPOINTS.auth.forgotPassword, { email })
+  },
+
+  /**
+   * Sets a new password from the token in the reset e-mail.
+   * Every existing session is revoked server-side, so the visitor signs in again.
+   */
+  resetPassword(payload: ResetPasswordPayload): Promise<string> {
+    return postForMessage(ENDPOINTS.auth.resetPassword, payload)
   },
 
   /** Revokes the current token server-side. */

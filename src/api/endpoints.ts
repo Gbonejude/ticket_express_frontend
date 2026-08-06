@@ -21,6 +21,8 @@ export const ENDPOINTS = {
     sendOtp: 'auth/send-otp',
     verifyOtp: 'auth/verify-otp',
     forgotPassword: 'auth/forgot-password',
+    /** Consumes the token from the reset e-mail. */
+    resetPassword: 'auth/reset-password',
     logout: 'auth/logout',
     me: 'me',
   },
@@ -30,7 +32,6 @@ export const ENDPOINTS = {
     detail: (id: Ulid) => `events/${id}`,
     ticketTypes: (id: Ulid) => `events/${id}/ticket-types`,
     occurrences: (id: Ulid) => `events/${id}/occurrences`,
-    reviews: (id: Ulid) => `events/${id}/reviews`,
     favorite: (id: Ulid) => `events/${id}/favorite`,
   },
 
@@ -47,6 +48,26 @@ export const ENDPOINTS = {
   organizers: {
     list: 'organizers',
     detail: (id: Ulid) => `organizers/${id}`,
+  },
+
+  users: {
+    /**
+     * Profile edits and password changes.
+     *
+     * There is no `me`-scoped write route: `PUT /users/{id}` is only
+     * `auth:sanctum`-gated, so the account page targets the signed-in user's
+     * own id. Passing anyone else's id is refused by the backend.
+     */
+    update: (id: Ulid) => `users/${id}`,
+  },
+
+  notifications: {
+    list: 'notifications',
+    /** Just the number, for the header badge. */
+    unreadCount: 'notifications/unread-count',
+    markAsRead: (id: string) => `notifications/${id}/markasread`,
+    /** Bulk, so "tout marquer comme lu" is one request rather than one per row. */
+    markAllAsRead: 'notifications/read-all',
   },
 
   orders: {
@@ -72,8 +93,9 @@ export const ENDPOINTS = {
     list: 'favorites',
   },
 
-  reviews: {
-    create: 'reviews',
+  coupons: {
+    /** Public, read-only check of a promo code before checkout. */
+    validate: 'coupons/validate',
   },
 
   contact: {

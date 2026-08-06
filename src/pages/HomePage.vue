@@ -4,10 +4,18 @@ import { useRouter } from 'vue-router'
 
 import CategoryTiles from '@/components/event/CategoryTiles.vue'
 import EventCard from '@/components/event/EventCard.vue'
-import { BaseAlert, BaseButton, BaseEmptyState, BaseIcon, BaseSkeleton } from '@/components/ui'
+import {
+  BaseAlert,
+  BaseButton,
+  BaseEmptyState,
+  BaseIcon,
+  BasePagination,
+  BaseSkeleton,
+} from '@/components/ui'
 import { useApiRequest } from '@/composables/useApiRequest'
+import { useFavorites } from '@/composables/useFavorites'
+import { useSearchStore } from '@/stores/search.store'
 import { dataSource } from '@/data'
-import { useUiStore } from '@/stores/ui.store'
 import type { Event } from '@/types/event'
 
 /**
@@ -19,44 +27,68 @@ import type { Event } from '@/types/event'
  * what the count indicator and the "Filtres avancés" shortcut are for.
  */
 const router = useRouter()
-const ui = useUiStore()
+const favorites = useFavorites()
+const searchStore = useSearchStore()
 
 const list = useApiRequest(dataSource.events.list)
 const categories = useApiRequest(dataSource.categories.list)
 
 const activeCategory = ref('')
-const favorites = ref<Set<string>>(new Set())
+const page = ref(1)
 
 const events = computed<Event[]>(() => list.data.value?.items ?? [])
+const meta = computed(() => list.data.value?.meta)
 const total = computed(() => list.data.value?.meta.total ?? 0)
 
 const categoryId = computed(
   () => categories.data.value?.find((entry) => entry.slug === activeCategory.value)?.id,
 )
 
+/** Twelve per page: three full rows of the four-column grid below. */
+const PER_PAGE = 12
+
 function load(): void {
-  void list.execute({ category_id: categoryId.value })
+  void list.execute({
+    page: page.value,
+    per_page: PER_PAGE,
+    category_id: categoryId.value,
+    // The header search filters the home grid in place rather than sending the
+    // visitor to the explore page — they are already looking at events.
+    search: searchStore.term || undefined,
+    // The home page is a shop window: nothing that has already happened.
+    when: 'upcoming',
+    sort: 'date-asc',
+  })
 }
 
-async function toggleFavorite(event: Event): Promise<void> {
-  const { favorited } = await dataSource.favorites.toggle(event.id)
-
-  if (favorited) favorites.value.add(event.id)
-  else favorites.value.delete(event.id)
-
-  // Reassigning keeps the computed dependents reactive to the Set mutation.
-  favorites.value = new Set(favorites.value)
-  ui.notify(favorited ? 'Ajouté à vos favoris.' : 'Retiré de vos favoris.', 'success')
+function goToPage(next: number): void {
+  page.value = next
+  document.getElementById('evenements')?.scrollIntoView({ behavior: 'smooth' })
 }
 
-watch(activeCategory, load)
+watch(page, load)
+
+// Typing in the header re-queries the grid; the term is debounced there.
+watch(
+  () => searchStore.term,
+  () => {
+    if (page.value === 1) load()
+    else page.value = 1
+  },
+)
+
+// Changing category restarts at the first page; page 3 of "Sport" rarely
+// exists when page 3 of "tout" did.
+watch(activeCategory, () => {
+  if (page.value === 1) load()
+  else page.value = 1
+})
 
 onMounted(async () => {
   await categories.execute()
   load()
 
-  for (const event of await dataSource.favorites.list()) favorites.value.add(event.id)
-  favorites.value = new Set(favorites.value)
+  void favorites.ensureLoaded()
 })
 </script>
 
@@ -103,18 +135,14 @@ onMounted(async () => {
     </section>
 
     <!-- Count and filters -->
-    <h2 class="visually-hidden">Événements</h2>
+    <h2 id="evenements" class="visually-hidden">Événements</h2>
 
     <div class="container toolbar">
       <span class="toolbar__count">
         {{ total }} {{ total > 1 ? 'événements trouvés' : 'événement trouvé' }}
       </span>
 
-      <button
-        class="toolbar__filters"
-        type="button"
-        @click="router.push({ name: 'events', query: { categorie: activeCategory || undefined } })"
-      >
+      <button class="toolbar__filters" type="button" @click="router.push({ name: 'events' })">
         <BaseIcon name="tune" :size="16" />
         Filtres avancés
       </button>
@@ -152,15 +180,29 @@ onMounted(async () => {
       </template>
     </BaseEmptyState>
 
-    <div v-else class="container grid">
-      <EventCard
-        v-for="event in events"
-        :key="event.id"
-        :event="event"
-        :is-favorite="favorites.has(event.id)"
-        @toggle-favorite="toggleFavorite"
-      />
-    </div>
+    <template v-else>
+      <div class="container grid">
+        <EventCard
+          v-for="event in events"
+          :key="event.id"
+          :event="event"
+          :is-favorite="favorites.has(event.id)"
+          @toggle-favorite="favorites.toggle"
+        />
+      </div>
+
+      <div v-if="meta && meta.last_page > 1" class="container pagination">
+        <BasePagination
+          :page="meta.current_page"
+          :total-pages="meta.last_page"
+          :total="meta.total"
+          :from="meta.from ?? undefined"
+          :to="meta.to ?? undefined"
+          item-label="événements"
+          @update:page="goToPage"
+        />
+      </div>
+    </template>
   </div>
 </template>
 
@@ -284,6 +326,10 @@ onMounted(async () => {
 }
 
 /* --- Grid --- */
+.pagination {
+  margin-block-start: var(--space-section-gap);
+}
+
 .grid {
   display: grid;
   grid-template-columns: 1fr;

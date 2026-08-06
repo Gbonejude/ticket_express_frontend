@@ -56,6 +56,17 @@ export const routes: RouteRecordRaw[] = [
         meta: { title: 'Organisateur' },
       },
       {
+        // Public: an organizer signs up here and never comes back. They have
+        // no account *on this site* — their events are managed in
+        // TicketExpress-dashboard, whose URL reaches them by e-mail once an
+        // administrator approves. Guarding this would have asked a visitor to
+        // create a client account before they could ask for an organizer one.
+        path: 'devenir-organisateur',
+        name: 'become-organizer',
+        component: () => import('@/pages/organizer/BecomeOrganizerPage.vue'),
+        meta: { title: 'Devenir organisateur' },
+      },
+      {
         path: 'qui-sommes-nous',
         name: 'about',
         component: () => import('@/pages/AboutPage.vue'),
@@ -133,6 +144,18 @@ export const routes: RouteRecordRaw[] = [
         name: 'favorites',
         component: () => import('@/pages/account/FavoritesPage.vue'),
         meta: { title: 'Mes favoris', requiresAuth: true },
+      },
+      {
+        path: 'notifications',
+        name: 'notifications',
+        component: () => import('@/pages/account/NotificationsPage.vue'),
+        meta: { title: 'Notifications', requiresAuth: true },
+      },
+      {
+        path: 'profil',
+        name: 'profile',
+        component: () => import('@/pages/account/ProfilePage.vue'),
+        meta: { title: 'Mon profil', requiresAuth: true },
       },
     ],
   },

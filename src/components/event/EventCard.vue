@@ -2,10 +2,19 @@
 import { computed } from 'vue'
 import { RouterLink, type RouteLocationRaw } from 'vue-router'
 
-import { BaseButton, BaseIcon } from '@/components/ui'
+import { BaseBadge, BaseButton, BaseIcon } from '@/components/ui'
 import { CATEGORY_FALLBACK_ICON, CATEGORY_ICONS } from '@/constants/navigation'
 import type { Event } from '@/types/event'
-import { eventCover, eventLocation, eventStartingPrice } from '@/utils/event'
+import {
+  eventCover,
+  eventDiscount,
+  eventHighlight,
+  eventLocation,
+  eventStartingPrice,
+  HIGHLIGHT_LABELS,
+  HIGHLIGHT_VARIANTS,
+  promotionalReference,
+} from '@/utils/event'
 import { formatEventSchedule, formatPrice } from '@/utils/format'
 
 /**
@@ -51,10 +60,30 @@ const props = withDefaults(
 defineEmits<{ 'toggle-favorite': [event: Event] }>()
 
 const cover = computed(() => eventCover(props.event))
+
+/** The corner flag: last chance, sold out, en cours… */
+const highlight = computed(() => eventHighlight(props.event))
+
+/**
+ * A promotion is flagged on its own, next to — not instead of — the stock flag.
+ * The percentage is what makes the badge worth the space it takes.
+ */
+const discount = computed(() => eventDiscount(props.event))
 const startingPrice = computed(() => eventStartingPrice(props.event))
-const isSoldOut = computed(() =>
-  (props.event.ticketTypes ?? []).every((type) => !type.isAvailableForPurchase),
-)
+/** Price before the discount, struck through beside the current one. */
+const reference = computed(() => promotionalReference(props.event))
+/**
+ * "Complet" means every tier is gone — not that we were told about none.
+ *
+ * The length check is the point: `[].every()` is `true`, so an event whose
+ * ticket types the endpoint did not load read as sold out and the buy button
+ * came back greyed on every card.
+ */
+const isSoldOut = computed(() => {
+  const types = props.event.ticketTypes ?? []
+
+  return types.length > 0 && types.every((type) => !type.isAvailableForPurchase)
+})
 
 const categoryIcon = computed(
   () => CATEGORY_ICONS[props.event.category?.slug ?? ''] ?? CATEGORY_FALLBACK_ICON,
@@ -96,6 +125,23 @@ const organizerInitial = computed(() =>
         <BaseIcon :name="categoryIcon" :size="12" />
         {{ event.category.name }}
       </span>
+
+      <!--
+        Opposite corner from the category chip: both used to be pinned top-right,
+        so the badge painted over the chip and a promotion looked like a bug.
+
+        Two flags, stacked, because they answer different questions — the green
+        one is about the price, the one under it about what is left in stock.
+      -->
+      <div class="event-card__flags">
+        <BaseBadge v-if="discount" variant="success" icon="loyalty" pill>
+          Promo −{{ discount }}&nbsp;%
+        </BaseBadge>
+
+        <BaseBadge v-if="highlight" :variant="HIGHLIGHT_VARIANTS[highlight]" pill>
+          {{ HIGHLIGHT_LABELS[highlight] }}
+        </BaseBadge>
+      </div>
     </div>
 
     <div class="event-card__body">
@@ -114,7 +160,7 @@ const organizerInitial = computed(() =>
           "
           @click="$emit('toggle-favorite', event)"
         >
-          <BaseIcon name="favorite" :size="20" />
+          <BaseIcon :name="isFavorite ? 'favorite' : 'favorite_border'" :size="20" />
           <span class="event-card__favorite-count">{{ event.favoritesCount ?? 0 }}</span>
         </button>
       </div>
@@ -126,10 +172,14 @@ const organizerInitial = computed(() =>
         </li>
         <li class="event-card__meta-row event-card__meta-row--price">
           <BaseIcon name="payments" :size="16" />
-          <span>
-            {{
-              startingPrice === 0 ? 'Entrée gratuite' : `À partir de ${formatPrice(startingPrice)}`
-            }}
+          <span v-if="startingPrice === null">Tarifs à venir</span>
+          <span v-else>
+            À partir de {{ formatPrice(startingPrice) }}
+            <!-- The old price only makes sense next to the discounted one; the
+                 badge alone left the visitor guessing what the promotion is off. -->
+            <s v-if="reference !== null && reference > startingPrice" class="event-card__was">
+              {{ formatPrice(reference) }}
+            </s>
           </span>
         </li>
         <li class="event-card__meta-row">
@@ -210,10 +260,22 @@ const organizerInitial = computed(() =>
   background-color: var(--color-surface-container);
 }
 
-.event-card__category {
+/* Stacked in the corner opposite the category chip, so neither covers the
+   other however many flags an event ends up carrying. */
+.event-card__flags {
   position: absolute;
   top: var(--space-2);
   right: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  align-items: flex-end;
+}
+
+.event-card__category {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
   display: flex;
   gap: var(--space-1);
   align-items: center;
@@ -272,9 +334,13 @@ const organizerInitial = computed(() =>
   transition: color var(--transition-fast);
 }
 
-.event-card__favorite:hover,
-.event-card__favorite[aria-pressed='true'] {
+.event-card__favorite:hover {
   color: var(--color-primary);
+}
+
+/* Bright red, not the deep brand red — see the same note on the event page. */
+.event-card__favorite[aria-pressed='true'] {
+  color: var(--color-primary-container);
 }
 
 .event-card__favorite-count {
@@ -304,6 +370,12 @@ const organizerInitial = computed(() =>
   color: var(--color-success);
   font-size: var(--text-label-bold);
   font-weight: 700;
+}
+
+.event-card__was {
+  margin-inline-start: var(--space-1);
+  color: var(--color-secondary);
+  font-weight: 500;
 }
 
 .event-card__cta {

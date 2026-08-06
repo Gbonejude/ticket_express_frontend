@@ -43,7 +43,21 @@ function step(delta: number): void {
     <div class="ticket__head">
       <div>
         <span class="ticket__name">{{ ticketType.name }}</span>
-        <p class="ticket__price t-price">{{ formatPrice(ticketType.currentPrice) }}</p>
+
+        <p class="ticket__price t-price">
+          {{ formatPrice(ticketType.currentPrice) }}
+          <!-- A discounted tier showed only its reduced price, which told the
+               visitor nothing: the promotion was invisible on the very page
+               where it should close the sale. -->
+          <s v-if="ticketType.hasActivePromotion" class="ticket__was">
+            {{ formatPrice(ticketType.price) }}
+          </s>
+        </p>
+
+        <span v-if="ticketType.hasActivePromotion" class="ticket__promo">
+          <BaseIcon name="loyalty" :size="12" />
+          Promo −{{ ticketType.discountPercentage }}&nbsp;%
+        </span>
       </div>
 
       <span class="ticket__badge" :class="`ticket__badge--${badge.tone}`">
@@ -127,6 +141,28 @@ function step(delta: number): void {
 .ticket__price {
   margin-block-start: var(--space-1);
   color: var(--color-on-surface);
+}
+
+.ticket__was {
+  margin-inline-start: var(--space-2);
+  color: var(--color-secondary);
+  font-size: var(--text-body-sm);
+  font-weight: 500;
+}
+
+/* Green, like the promotion badge on the cards: one colour for one meaning. */
+.ticket__promo {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  margin-block-start: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  background-color: var(--color-success);
+  border-radius: var(--radius-full);
 }
 
 .ticket__badge {

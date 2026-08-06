@@ -52,6 +52,25 @@ export function formatRelativeDate(date: ApiDate | null | undefined): string {
   return date?.humanDiff ?? '—'
 }
 
+const relativeFormatter = new Intl.RelativeTimeFormat(APP_CONFIG.locale, { numeric: 'auto' })
+
+/**
+ * Relative label built from a bare ISO string, e.g. "il y a 2 jours".
+ *
+ * `formatRelativeDate` reads the API's own `humanDiff`, which only exists on a
+ * full `ApiDate`. Some values reach the UI as plain ISO strings — a date picked
+ * out of a list and compared client-side — and those are formatted here.
+ */
+export function formatRelativeFromIso(iso: string | null | undefined): string {
+  if (!iso) return '—'
+
+  const days = Math.round((new Date(iso).getTime() - Date.now()) / 86_400_000)
+
+  if (Math.abs(days) >= 30) return relativeFormatter.format(Math.round(days / 30), 'month')
+
+  return relativeFormatter.format(days, 'day')
+}
+
 const scheduleDateFormatter = new Intl.DateTimeFormat(APP_CONFIG.locale, {
   weekday: 'short',
   day: 'numeric',

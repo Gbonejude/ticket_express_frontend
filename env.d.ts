@@ -17,6 +17,8 @@ interface ImportMetaEnv {
   readonly VITE_APP_CURRENCY?: string
   /** BCP 47 locale used to format dates and numbers. */
   readonly VITE_APP_LOCALE?: string
+  /** Login URL of TicketExpress-dashboard, where approved organizers are sent. */
+  readonly VITE_DASHBOARD_URL?: string
   /** Dev server port. Read by vite.config.ts, not by application code. */
   readonly VITE_DEV_PORT?: string
 }

@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import { RouterView } from 'vue-router'
 
-import { ToastHost } from '@/components/ui'
-
 /**
  * Application root.
  *
  * It renders almost nothing itself: layouts are route components, so the chrome
- * a page gets is decided by the route table rather than by conditions here. The
- * toast host is the exception — it must outlive every navigation.
+ * a page gets is decided by the route table rather than by conditions here.
+ * Toasts are not rendered here either — SweetAlert2 appends them to `body`, so
+ * they already outlive every navigation.
  */
 </script>
 
@@ -16,6 +15,4 @@ import { ToastHost } from '@/components/ui'
   <a class="skip-link" href="#main-content">Aller au contenu principal</a>
 
   <RouterView />
-
-  <ToastHost />
 </template>

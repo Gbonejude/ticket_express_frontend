@@ -1,117 +1,72 @@
 import { createPinia, setActivePinia } from 'pinia'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { dismissToast, showToast } from '@/utils/toast'
 
 import { useUiStore } from './ui.store'
 
+vi.mock('@/utils/toast', () => ({
+  showToast: vi.fn(),
+  dismissToast: vi.fn(),
+}))
+
+/**
+ * The store no longer holds a toast queue — SweetAlert2 renders and expires
+ * them (see `utils/toast`). What is worth testing here is that the store still
+ * honours the contract every call site relies on: the message, the variant and
+ * its default, and the duration.
+ */
 describe('ui store', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
-    vi.useFakeTimers()
-  })
-
-  afterEach(() => {
-    vi.useRealTimers()
+    vi.clearAllMocks()
   })
 
   describe('notify', () => {
-    it('queues a toast', () => {
-      const ui = useUiStore()
+    it('passes the message and variant through', () => {
+      useUiStore().notify('Commande confirmée.', 'success')
 
-      ui.notify('Commande confirmée.', 'success')
-
-      expect(ui.toasts).toHaveLength(1)
-      expect(ui.toasts[0]).toMatchObject({ message: 'Commande confirmée.', variant: 'success' })
+      expect(showToast).toHaveBeenCalledWith('Commande confirmée.', 'success', 5000)
     })
 
     it('defaults to the info variant', () => {
-      const ui = useUiStore()
+      useUiStore().notify('Un message')
 
-      ui.notify('Un message')
-
-      expect(ui.toasts[0]?.variant).toBe('info')
+      expect(showToast).toHaveBeenCalledWith('Un message', 'info', 5000)
     })
 
-    it('gives each toast a distinct id so several can coexist', () => {
-      const ui = useUiStore()
+    it('honours a custom duration', () => {
+      useUiStore().notify('Long', 'warning', 10_000)
 
-      ui.notify('Premier')
-      ui.notify('Second')
-
-      expect(ui.toasts).toHaveLength(2)
-      expect(ui.toasts[0]?.id).not.toBe(ui.toasts[1]?.id)
+      expect(showToast).toHaveBeenCalledWith('Long', 'warning', 10_000)
     })
 
-    it('removes the toast once its duration elapses', () => {
+    it('does not throw when called repeatedly', () => {
       const ui = useUiStore()
 
-      ui.notify('Éphémère', 'info', 5000)
-      expect(ui.toasts).toHaveLength(1)
+      expect(() => {
+        ui.notify('Premier')
+        ui.notify('Second')
+      }).not.toThrow()
 
-      vi.advanceTimersByTime(5000)
-      expect(ui.toasts).toHaveLength(0)
-    })
-
-    it('keeps the toast until its own duration is reached', () => {
-      const ui = useUiStore()
-
-      ui.notify('Long', 'info', 10_000)
-
-      vi.advanceTimersByTime(5000)
-      expect(ui.toasts).toHaveLength(1)
-    })
-
-    it('expires each toast on its own schedule', () => {
-      const ui = useUiStore()
-
-      ui.notify('Court', 'info', 1000)
-      ui.notify('Long', 'info', 8000)
-
-      vi.advanceTimersByTime(1000)
-
-      expect(ui.toasts).toHaveLength(1)
-      expect(ui.toasts[0]?.message).toBe('Long')
+      expect(showToast).toHaveBeenCalledTimes(2)
     })
   })
 
   describe('dismiss', () => {
-    it('removes the targeted toast only', () => {
-      const ui = useUiStore()
+    it('closes the toast on screen', () => {
+      useUiStore().dismiss()
 
-      ui.notify('Premier')
-      ui.notify('Second')
-
-      ui.dismiss(ui.toasts[0]!.id)
-
-      expect(ui.toasts).toHaveLength(1)
-      expect(ui.toasts[0]?.message).toBe('Second')
-    })
-
-    it('is a no-op for an unknown id', () => {
-      const ui = useUiStore()
-
-      ui.notify('Premier')
-      ui.dismiss(9999)
-
-      expect(ui.toasts).toHaveLength(1)
-    })
-
-    it('does not throw when the timer fires after a manual dismiss', () => {
-      const ui = useUiStore()
-
-      ui.notify('Premier', 'info', 3000)
-      ui.dismiss(ui.toasts[0]!.id)
-
-      expect(() => vi.advanceTimersByTime(3000)).not.toThrow()
-      expect(ui.toasts).toHaveLength(0)
+      expect(dismissToast).toHaveBeenCalled()
     })
   })
 
-  describe('toggleMobileMenu', () => {
+  describe('mobile menu', () => {
     it('starts closed', () => {
       expect(useUiStore().isMobileMenuOpen).toBe(false)
     })
 
-    it('flips the state when called with no argument', () => {
+    it('toggles', () => {
       const ui = useUiStore()
 
       ui.toggleMobileMenu()
@@ -121,7 +76,7 @@ describe('ui store', () => {
       expect(ui.isMobileMenuOpen).toBe(false)
     })
 
-    it('forces the state when given one', () => {
+    it('accepts an explicit state', () => {
       const ui = useUiStore()
 
       ui.toggleMobileMenu(true)

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BaseButton, BaseCheckbox } from '@/components/ui'
+import { BaseButton, BaseCheckbox, BaseIcon } from '@/components/ui'
 import type { EventCategory } from '@/types/event'
 import { formatPrice } from '@/utils/format'
 
@@ -45,6 +45,18 @@ function selectPeriod(value: EventFilterState['period']): void {
     period: model.value.period === value ? 'all' : value,
   }
 }
+
+const eventTypes = [
+  { value: 'physical', label: 'Sur place', icon: 'location_on' },
+  { value: 'online', label: 'En ligne', icon: 'videocam' },
+] as const
+
+function selectEventType(value: 'physical' | 'online'): void {
+  model.value = {
+    ...model.value,
+    eventType: model.value.eventType === value ? 'all' : value,
+  }
+}
 </script>
 
 <template>
@@ -58,7 +70,7 @@ function selectPeriod(value: EventFilterState['period']): void {
           :key="category.id"
           :model-value="model.categories.includes(category.slug)"
           :label="category.name"
-          :count="category.eventsCount"
+          :count="category.upcomingEventsCount"
           @update:model-value="toggleCategory(category.slug, $event)"
         />
       </div>
@@ -88,6 +100,39 @@ function selectPeriod(value: EventFilterState['period']): void {
           :value="model.date"
           @input="model = { ...model, date: ($event.target as HTMLInputElement).value }"
         />
+      </div>
+    </fieldset>
+
+    <fieldset class="filters__group">
+      <legend class="filters__legend t-label">Organisateur</legend>
+
+      <label class="visually-hidden" for="filter-organizer">Nom de l'organisateur</label>
+      <input
+        id="filter-organizer"
+        class="filters__date"
+        type="search"
+        placeholder="Ex. Lomé Live Productions"
+        :value="model.organizer"
+        @change="model = { ...model, organizer: ($event.target as HTMLInputElement).value }"
+      />
+    </fieldset>
+
+    <fieldset class="filters__group">
+      <legend class="filters__legend t-label">Format</legend>
+
+      <div class="filters__list filters__list--inline">
+        <button
+          v-for="type in eventTypes"
+          :key="type.value"
+          class="filters__period"
+          :class="{ 'filters__period--active': model.eventType === type.value }"
+          type="button"
+          :aria-pressed="model.eventType === type.value"
+          @click="selectEventType(type.value)"
+        >
+          <BaseIcon :name="type.icon" :size="16" />
+          {{ type.label }}
+        </button>
       </div>
     </fieldset>
 
@@ -145,6 +190,11 @@ function selectPeriod(value: EventFilterState['period']): void {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+}
+
+.filters__list--inline {
+  flex-direction: row;
+  flex-wrap: wrap;
 }
 
 .filters__period {

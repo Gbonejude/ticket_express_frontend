@@ -1,6 +1,13 @@
 import { ENDPOINTS, getList, getOne, post } from '@/api'
 import type { Paginated, Ulid } from '@/types/api'
-import type { CreateOrderPayload, Order } from '@/types/order'
+import type { CreateOrderPayload, Order, OrderStatus } from '@/types/order'
+
+/** Filters accepted by `GET /orders`, all applied server-side. */
+export interface OrderListQuery {
+  page?: number
+  status?: OrderStatus
+  search?: string
+}
 
 /**
  * Checkout and order history.
@@ -14,9 +21,12 @@ export const ordersService = {
     return post<Order, CreateOrderPayload>(ENDPOINTS.orders.create, payload)
   },
 
-  /** Orders of the signed-in user. */
-  list(page = 1, signal?: AbortSignal): Promise<Paginated<Order>> {
-    return getList<Order>(ENDPOINTS.orders.list, { params: { page }, signal })
+  /** Orders of the signed-in user. The API scopes them; no user id is sent. */
+  list(query: OrderListQuery = {}, signal?: AbortSignal): Promise<Paginated<Order>> {
+    return getList<Order>(ENDPOINTS.orders.list, {
+      params: { page: query.page ?? 1, status: query.status, search: query.search },
+      signal,
+    })
   },
 
   /** One order with its items, tickets and download links. */

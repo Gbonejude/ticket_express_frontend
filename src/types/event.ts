@@ -9,6 +9,9 @@ import type { User } from './user'
 export type EventStatus = 'draft' | 'published' | 'cancelled' | 'completed'
 export type EventType = 'physical' | 'online'
 
+/** Approval state of an organiser profile, from `OrganizerStatus` on the API. */
+export type OrganizerStatus = 'pending' | 'approved' | 'rejected'
+
 /** How a ticket type is currently selling. Drives badges on the public site. */
 export type AvailabilityStatus =
   'available' | 'limited' | 'almost_sold_out' | 'sold_out' | 'not_started' | 'ended'
@@ -17,7 +20,15 @@ export interface EventCategory {
   id: Ulid
   name: string
   slug: string
+  /** Every event, past ones included. */
   eventsCount?: number
+  /**
+   * Published events that have not ended — what the catalogue actually offers.
+   *
+   * The tiles and filter checkboxes must use this: `eventsCount` counts past
+   * events too, so a tile advertising 25 led to a list of 23.
+   */
+  upcomingEventsCount?: number
   createdAt?: ApiDate
   updatedAt?: ApiDate
 }
@@ -42,9 +53,19 @@ export interface Organizer {
   logo: string | null
   logoThumbnail: string | null
   website: string | null
-  status: string
+  /** `pending` until an administrator approves or rejects the application. */
+  status: OrganizerStatus
   statusLabel: string
+  /**
+   * Whether the profile is switched on.
+   *
+   * Separate from `status`: an approved organiser can be deactivated, and the
+   * back-office would then let them sign in to a dead end. Both must be true
+   * before the public site hands anyone over.
+   */
   isActive: boolean
+  /** Why the application was refused. Only set when `status` is `rejected`. */
+  rejectionReason?: string | null
   eventsCount?: number
 
   /**
@@ -92,6 +113,14 @@ export interface TicketType {
 
   saleStartDate: ApiDate | null
   saleEndDate: ApiDate | null
+
+  /**
+   * The event this type belongs to.
+   *
+   * Eager-loaded by the order endpoints only, so "my tickets" can name the
+   * event without a request per ticket. Absent everywhere else.
+   */
+  event?: Event
 }
 
 export interface EventOccurrence {
@@ -129,31 +158,34 @@ export interface Event {
   ticketTypes?: TicketType[]
 
   ticketTypesCount?: number
-  reviewsCount?: number
   favoritesCount?: number
-  averageRating?: number
 
   createdAt?: ApiDate
   updatedAt?: ApiDate
 }
 
-/** Filters accepted by `GET /events`. */
+/** Ordering accepted by `GET /events?sort=`. */
+export type EventSort = 'recent' | 'price-asc' | 'price-desc' | 'date-asc' | 'date-desc'
+
+/** Filters accepted by `GET /events`. All are applied server-side. */
 export interface EventListQuery {
   page?: number
+  per_page?: number
   search?: string
+  city?: string
   category_id?: Ulid
   venue_id?: Ulid
   organizer_id?: Ulid
   status?: EventStatus
   event_type?: EventType
+  /** Restricts to events that have not ended yet, or only those that have. */
+  when?: 'upcoming' | 'past'
+  /** Inclusive date window on the start date, as `YYYY-MM-DD`. */
+  starts_after?: string
+  starts_before?: string
+  /** Keeps events with at least one ticket type at or below this price. */
+  max_price?: number
+  sort?: EventSort
   [key: string]: string | number | boolean | undefined
 }
 
-export interface Review {
-  id: Ulid
-  eventId: Ulid
-  userId: Ulid
-  rating: number
-  comment: string | null
-  createdAt?: ApiDate
-}

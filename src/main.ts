@@ -1,9 +1,11 @@
 import { createPinia } from 'pinia'
-import { createApp } from 'vue'
+import { createApp, watch } from 'vue'
 
 import { setUnauthenticatedHandler } from '@/api'
 import router from '@/router'
 import { useAuthStore } from '@/stores/auth.store'
+import { useFavoritesStore } from '@/stores/favorites.store'
+import { useNotificationsStore } from '@/stores/notifications.store'
 
 import App from './App.vue'
 
@@ -14,6 +16,24 @@ const pinia = createPinia()
 
 app.use(pinia)
 app.use(router)
+
+/**
+ * Drops the per-user caches when the session ends.
+ *
+ * Wired here rather than inside `auth.logout()` because those stores import the
+ * auth store themselves; reaching back from it would close the cycle. Watching
+ * from the outside also covers the session expiring mid-visit, not just a
+ * deliberate logout.
+ */
+watch(
+  () => useAuthStore(pinia).isAuthenticated,
+  (isAuthenticated) => {
+    if (isAuthenticated) return
+
+    useFavoritesStore(pinia).reset()
+    useNotificationsStore(pinia).reset()
+  },
+)
 
 /**
  * Bridges the HTTP layer back to the app when the API rejects the token.

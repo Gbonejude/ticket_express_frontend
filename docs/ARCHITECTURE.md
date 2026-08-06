@@ -173,7 +173,7 @@ Pagination **serveur partout, 15 par page**. `getList` renvoie `{ items, meta }`
 | Inscription | `POST auth/register/client` | non |
 | Commande | `POST orders` | **non** — achat invité autorisé |
 | Commandes | `GET orders`, `GET orders/{id}`, `POST orders/{id}/cancel` | oui |
-| Paiement | `POST payments/initiate`, `GET payments/{id}/status` | oui |
+| Paiement | `POST payments/initiate`, `GET payments/{id}/status` | non |
 | Billets | `GET tickets/download/{token}` | non (token) |
 | Favoris | `GET favorites`, `POST events/{event}/favorite` | oui |
 | Profil | `GET me` | oui |
@@ -203,7 +203,7 @@ Le flux téléphone (`send-otp` → `verify-otp` → `register` si le numéro es
 
 Le paiement mobile money (FLOOZ / TMONEY) est **asynchrone** :
 
-1. `POST payments/initiate` déclenche l'invite USSD sur le téléphone du payeur ;
+1. `POST payments/initiate` déclenche l'invite USSD sur le téléphone du payeur, sans connexion requise ;
 2. PayGate appelle le webhook du backend une fois l'opération résolue ;
 3. le front interroge `GET payments/{id}/status` jusqu'à sortie de l'état `pending`.
 

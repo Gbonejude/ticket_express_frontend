@@ -1,4 +1,6 @@
 export type * from './api'
+export type * from './contact'
 export type * from './event'
+export type * from './notification'
 export type * from './order'
 export type * from './user'

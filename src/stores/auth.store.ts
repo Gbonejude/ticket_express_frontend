@@ -3,8 +3,14 @@ import { computed, ref } from 'vue'
 
 import { ApiError } from '@/api'
 import { STORAGE_KEYS } from '@/constants/storage'
-import { authService } from '@/services'
-import type { LoginPayload, RegisterClientPayload, User } from '@/types/user'
+import { accountService, authService } from '@/services'
+import type {
+  ChangePasswordPayload,
+  LoginPayload,
+  RegisterClientPayload,
+  UpdateProfilePayload,
+  User,
+} from '@/types/user'
 import { storage } from '@/utils/storage'
 
 /**
@@ -99,6 +105,33 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  /** Writes a fresh profile into both the store and its persisted copy. */
+  function setUser(profile: User): void {
+    user.value = profile
+    storage.set(STORAGE_KEYS.user, profile)
+  }
+
+  /** Updates the visitor's personal details. */
+  async function updateProfile(payload: UpdateProfilePayload): Promise<void> {
+    if (!user.value) throw new ApiError('Vous devez être connecté.', { status: 401 })
+
+    setUser(await accountService.updateProfile(user.value.id, payload))
+  }
+
+  /** Changes the password. The token stays valid — the API does not revoke it. */
+  async function changePassword(payload: ChangePasswordPayload): Promise<void> {
+    if (!user.value) throw new ApiError('Vous devez être connecté.', { status: 401 })
+
+    await accountService.changePassword(user.value.id, payload)
+  }
+
+  /** Replaces the profile picture. */
+  async function updateAvatar(file: File): Promise<void> {
+    if (!user.value) throw new ApiError('Vous devez être connecté.', { status: 401 })
+
+    setUser(await accountService.updateAvatar(user.value.id, file))
+  }
+
   return {
     user,
     accessToken,
@@ -110,5 +143,9 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     clearSession,
     fetchProfile,
+    setUser,
+    updateProfile,
+    changePassword,
+    updateAvatar,
   }
 })

@@ -256,8 +256,13 @@ async function submit(): Promise<void> {
           Rejoignez des milliers d'organisateurs qui font confiance à {{ APP_CONFIG.name }} pour
           leur billetterie en ligne.
         </p>
-        <BaseButton variant="inverse" size="lg" href="#publier" icon-end="arrow_forward">
-          Créer un événement
+        <BaseButton
+          variant="inverse"
+          size="lg"
+          :to="{ name: 'become-organizer' }"
+          icon-end="arrow_forward"
+        >
+          Devenir organisateur
         </BaseButton>
       </div>
     </section>

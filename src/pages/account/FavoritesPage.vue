@@ -4,8 +4,8 @@ import { computed, onMounted, ref } from 'vue'
 import EventCard from '@/components/event/EventCard.vue'
 import { BaseAlert, BaseButton, BaseEmptyState, BaseSkeleton } from '@/components/ui'
 import { useApiRequest } from '@/composables/useApiRequest'
-import { dataSource } from '@/data'
-import { useUiStore } from '@/stores/ui.store'
+import { useFavorites } from '@/composables/useFavorites'
+import { useFavoritesStore } from '@/stores/favorites.store'
 import type { Event } from '@/types/event'
 import { eventStartingPrice } from '@/utils/event'
 
@@ -20,15 +20,22 @@ import { eventStartingPrice } from '@/utils/event'
  * look similar: the heart here always starts filled, and clicking it removes
  * the favourite instead of toggling it.
  */
-const ui = useUiStore()
+const store = useFavoritesStore()
+const favorites = useFavorites()
 
-const list = useApiRequest(dataSource.favorites.list)
+/**
+ * The list comes from the store, not from a request of its own.
+ *
+ * Removing a favourite here has to be visible everywhere else at once — the
+ * header count, the hearts on the home page — and the store already drops the
+ * card optimistically, so no local "removed" set is needed to hide it.
+ */
+const list = useApiRequest(() => store.load(true))
 
 const sort = ref<'recent' | 'date' | 'price'>('recent')
-const removed = ref<Set<string>>(new Set())
 
 const events = computed<Event[]>(() => {
-  const rows = (list.data.value ?? []).filter((event) => !removed.value.has(event.id))
+  const rows = store.events
 
   if (sort.value === 'price') {
     return [...rows].sort((a, b) => (eventStartingPrice(a) ?? 0) - (eventStartingPrice(b) ?? 0))
@@ -44,10 +51,7 @@ const events = computed<Event[]>(() => {
 })
 
 async function remove(event: Event): Promise<void> {
-  await dataSource.favorites.toggle(event.id)
-
-  removed.value = new Set(removed.value).add(event.id)
-  ui.notify(`${event.title} retiré de vos favoris.`, 'success')
+  await favorites.toggle(event)
 }
 
 onMounted(() => {

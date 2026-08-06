@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 
 import EventCard from '@/components/event/EventCard.vue'
 import FaqAccordion from '@/components/event/FaqAccordion.vue'
 import TicketTypeCard from '@/components/event/TicketTypeCard.vue'
 import { BaseAlert, BaseButton, BaseIcon, BaseSkeleton, SectionHeading } from '@/components/ui'
 import { useApiRequest } from '@/composables/useApiRequest'
+import { useFavorites } from '@/composables/useFavorites'
 import { dataSource } from '@/data'
 import { useUiStore } from '@/stores/ui.store'
 import { eventCover, eventLocation } from '@/utils/event'
@@ -32,11 +33,15 @@ const faq = useApiRequest(dataSource.events.faq)
 
 /** Quantity per ticket type id. */
 const basket = reactive<Record<string, number>>({})
-const isFavorite = ref(false)
 const isDescriptionOpen = ref(false)
+
+const favorites = useFavorites()
 
 const event = computed(() => detail.data.value)
 const ticketTypes = computed(() => event.value?.ticketTypes ?? [])
+
+/** Reads through the store, so the heart agrees with the cards elsewhere. */
+const isFavorite = computed(() => (event.value ? favorites.has(event.value.id) : false))
 
 const total = computed(() =>
   ticketTypes.value.reduce((sum, type) => sum + type.currentPrice * (basket[type.id] ?? 0), 0),
@@ -83,23 +88,22 @@ async function load(): Promise<void> {
 
   if (!loaded) return
 
-  isFavorite.value = dataSource.favorites.has(loaded.id)
+  await favorites.ensureLoaded()
   isDescriptionOpen.value = false
 
   for (const key of Object.keys(basket)) delete basket[key]
   for (const type of loaded.ticketTypes ?? []) basket[type.id] = 0
 
-  void related.execute(loaded.id, 4)
+  // Passes the loaded event rather than its id: `related` would otherwise
+  // fetch the very event this page just received.
+  void related.execute(loaded, 4)
   void faq.execute()
 }
 
 async function toggleFavorite(): Promise<void> {
   if (!event.value) return
 
-  const { favorited } = await dataSource.favorites.toggle(event.value.id)
-
-  isFavorite.value = favorited
-  ui.notify(favorited ? 'Ajouté à vos favoris.' : 'Retiré de vos favoris.', 'success')
+  await favorites.toggle(event.value)
 }
 
 function goToCheckout(): void {
@@ -159,7 +163,12 @@ onMounted(load)
               :aria-label="isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'"
               @click="toggleFavorite"
             >
-              <BaseIcon name="favorite" :size="24" />
+              <!--
+                Outline until it is favourited, exactly like the cards. The
+                filled glyph on its own painted a solid dark heart on a page the
+                visitor had not favourited, which read as "already liked".
+              -->
+              <BaseIcon :name="isFavorite ? 'favorite' : 'favorite_border'" :size="24" />
             </button>
           </div>
 
@@ -202,7 +211,19 @@ onMounted(load)
               <BaseIcon name="person" :size="18" />
             </span>
             <span>
-              Publié par <strong>{{ event.organizer.companyName }}</strong>
+              Publié par
+              <!--
+                The name stays in the text colour, unadorned: the chevron and
+                the hover state carry the affordance. A red underlined name read
+                as a warning next to the rest of the black meta block.
+              -->
+              <RouterLink
+                class="hero__organizer-link"
+                :to="{ name: 'organizer', params: { id: event.organizer.id } }"
+              >
+                {{ event.organizer.companyName }}
+                <BaseIcon name="chevron_right" :size="16" />
+              </RouterLink>
             </span>
           </div>
 
@@ -374,9 +395,15 @@ onMounted(load)
   transition: color var(--transition-fast);
 }
 
-.hero__favorite:hover,
-.hero__favorite[aria-pressed='true'] {
+.hero__favorite:hover {
   color: var(--color-primary);
+}
+
+/* The favourited heart takes the bright red rather than the deep brand red:
+   at icon size #b9000a reads as near-black, which is the whole reason the
+   pressed state looked like it had not changed. */
+.hero__favorite[aria-pressed='true'] {
+  color: var(--color-primary-container);
 }
 
 .hero__description {
@@ -389,7 +416,7 @@ onMounted(load)
   display: inline-flex;
   gap: var(--space-1);
   align-items: center;
-  color: var(--color-primary);
+  color: inherit;
   font: inherit;
   font-weight: 600;
 }
@@ -428,6 +455,20 @@ onMounted(load)
   align-items: center;
   margin-block-end: var(--space-8);
   font-size: var(--text-body-md);
+}
+
+.hero__organizer-link {
+  display: inline-flex;
+  gap: 0.125rem;
+  align-items: center;
+  color: var(--color-on-surface);
+  font-weight: 700;
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.hero__organizer-link:hover {
+  color: var(--color-primary);
 }
 
 .hero__organizer-avatar {

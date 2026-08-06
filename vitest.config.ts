@@ -26,6 +26,22 @@ export default defineConfig({
     setupFiles: ['./src/__tests__/setup.ts'],
     include: ['src/**/*.{test,spec}.ts'],
 
+    /**
+     * Spinning up a jsdom environment per worker is slow on Windows, and the
+     * default pool starts one per test file at once: several then miss the
+     * hand-shake deadline and the run reports "Failed to start forks worker"
+     * for files whose tests are perfectly healthy — a red suite that says
+     * nothing about the code.
+     *
+     * Capping the pool keeps the workers few enough to start reliably. The
+     * suite is CPU-bound on environment setup rather than on the tests
+     * themselves, so this costs little wall-clock time.
+     *
+     * Top-level rather than under `poolOptions.forks`: Vitest 4 removed that
+     * nesting.
+     */
+    maxWorkers: 4,
+
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],

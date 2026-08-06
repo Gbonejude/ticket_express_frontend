@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { onClickOutside } from '@vueuse/core'
+import { onClickOutside, useDebounceFn } from '@vueuse/core'
 import { ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 
 import LogoutConfirm from '@/components/layout/LogoutConfirm.vue'
 import { BaseAvatar, BaseButton, BaseDrawer, BaseIcon } from '@/components/ui'
 import { APP_CONFIG } from '@/constants/app'
+import { SEARCH_DEBOUNCE_MS } from '@/constants/app'
 import { ACCOUNT_NAV, HEADER_NAV } from '@/constants/navigation'
 import { useAuthStore } from '@/stores/auth.store'
+import { useSearchStore } from '@/stores/search.store'
 import { useUiStore } from '@/stores/ui.store'
 
 /**
@@ -20,6 +22,7 @@ import { useUiStore } from '@/stores/ui.store'
  */
 const auth = useAuthStore()
 const ui = useUiStore()
+const searchStore = useSearchStore()
 const route = useRoute()
 const router = useRouter()
 
@@ -42,11 +45,35 @@ watch(
   },
 )
 
+/**
+ * Search as you type, and stay where you are when the page can already answer.
+ *
+ * The term goes into a store rather than the URL, so the home page and the
+ * explore page both react to it without either having to navigate. Typing on a
+ * page that shows events therefore filters it in place — leaving the home page,
+ * where the visitor is already looking at events, to go and ask the same
+ * question elsewhere made no sense.
+ *
+ * From anywhere else — contact, à propos, a ticket — there is nothing to
+ * filter, so the search hands over to the explore page.
+ */
+const PAGES_THAT_LIST_EVENTS = ['home', 'events']
+
+const applySearch = useDebounceFn(() => {
+  searchStore.set(search.value.trim())
+
+  if (!PAGES_THAT_LIST_EVENTS.includes(String(route.name))) {
+    void router.push({ name: 'events' })
+  }
+}, SEARCH_DEBOUNCE_MS)
+
+/** Enter skips the debounce; nothing is submitted, the term is already live. */
 function submitSearch(): void {
-  void router.push({
-    name: 'events',
-    query: search.value.trim() ? { recherche: search.value.trim() } : {},
-  })
+  searchStore.set(search.value.trim())
+
+  if (!PAGES_THAT_LIST_EVENTS.includes(String(route.name))) {
+    void router.push({ name: 'events' })
+  }
 }
 
 /** Opened by the account menu; the dialog is what routes to `/deconnexion`. */
@@ -105,7 +132,8 @@ const NEVER = 'header__nav-link--prefix'
           v-model="search"
           class="header__search-input"
           type="search"
-          placeholder="Rechercher un événement, un lieu…"
+          placeholder="Rechercher un événement, une catégorie, un organisateur…"
+          @input="applySearch"
         />
         <button class="header__search-button" type="submit" aria-label="Lancer la recherche">
           <BaseIcon name="search" :size="22" />
@@ -123,13 +151,15 @@ const NEVER = 'header__nav-link--prefix'
           <BaseIcon name="search" :size="24" />
         </button>
 
-        <BaseButton class="header__publish" pill href="#publier"> Publier un événement </BaseButton>
+        <BaseButton class="header__publish" pill :to="{ name: 'become-organizer' }">
+          Devenir organisateur
+        </BaseButton>
 
         <RouterLink
           class="header__icon-button header__icon-button--muted"
           :to="{ name: 'favorites' }"
         >
-          <BaseIcon name="favorite" :size="22" label="Mes favoris" />
+          <BaseIcon name="favorite_border" :size="22" label="Mes favoris" />
         </RouterLink>
 
         <RouterLink
@@ -208,7 +238,8 @@ const NEVER = 'header__nav-link--prefix'
           v-model="search"
           class="header__search-input"
           type="search"
-          placeholder="Rechercher un événement, un lieu…"
+          placeholder="Rechercher un événement, une catégorie, un organisateur…"
+          @input="applySearch"
         />
         <button class="header__search-button" type="submit" aria-label="Lancer la recherche">
           <BaseIcon name="search" :size="22" />
@@ -266,10 +297,10 @@ const NEVER = 'header__nav-link--prefix'
           </div>
         </details>
 
-        <!-- The header's own "Publier un événement" is desktop-only; without
+        <!-- The header's own "Devenir organisateur" is desktop-only; without
              this the action is unreachable on a phone. -->
-        <BaseButton class="drawer-nav__publish" block pill href="#publier">
-          Publier un événement
+        <BaseButton class="drawer-nav__publish" block pill :to="{ name: 'become-organizer' }">
+          Devenir organisateur
         </BaseButton>
 
         <button
@@ -410,6 +441,9 @@ const NEVER = 'header__nav-link--prefix'
   transform: translateY(-50%) scale(0.95);
 }
 
+/* Favoris et billets : deux raccourcis de même rang, donc même traitement —
+   tracé gris, pas de pastille. Le cœur prend la variante `favorite_border`
+   pour garder le même poids de trait que le billet à côté. */
 .header__icon-button--muted {
   display: none;
   color: var(--color-on-surface-variant);

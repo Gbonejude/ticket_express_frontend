@@ -30,7 +30,6 @@ export { default as BaseSkeleton } from './BaseSkeleton.vue'
 export { default as BaseSpinner } from './BaseSpinner.vue'
 export { default as BaseTabs } from './BaseTabs.vue'
 export { default as SectionHeading } from './SectionHeading.vue'
-export { default as ToastHost } from './ToastHost.vue'
 
 export type { IconName } from './icons'
 export type { Crumb, SelectOption, TabItem } from './types'

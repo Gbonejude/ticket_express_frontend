@@ -1,19 +1,26 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 
+import { ApiError } from '@/api'
 import StatCard from '@/components/account/StatCard.vue'
 import {
   BaseAlert,
+  BaseBadge,
   BaseButton,
   BaseEmptyState,
   BaseIcon,
   BasePagination,
+  BaseSelect,
   BaseSkeleton,
 } from '@/components/ui'
 import { useApiRequest } from '@/composables/useApiRequest'
 import { dataSource } from '@/data'
 import { useUiStore } from '@/stores/ui.store'
-import { eventCover } from '@/utils/event'
+import type { SelectOption } from '@/components/ui'
+import { pdfDownloadUrl } from '@/services'
+import type { Event } from '@/types/event'
+import type { Order, OrderStatus } from '@/types/order'
+import { eventCover, eventTitle } from '@/utils/event'
 import { formatDate, formatPrice, formatTime } from '@/utils/format'
 
 /**
@@ -28,6 +35,29 @@ const ui = useUiStore()
 const orders = useApiRequest(dataSource.orders.history)
 
 const page = ref(1)
+
+/** Statuses `GET /orders` accepts, plus an "all" entry that sends none. */
+const STATUS_OPTIONS: SelectOption[] = [
+  { value: '', label: 'Tous les statuts' },
+  { value: 'paid', label: 'Payées' },
+  { value: 'pending', label: 'En attente' },
+  { value: 'cancelled', label: 'Annulées' },
+  { value: 'refunded', label: 'Remboursées' },
+]
+
+const status = ref('')
+
+/** Badge colour per order status, so a cancelled order never reads as paid. */
+const STATUS_VARIANTS: Record<OrderStatus, 'success' | 'warning' | 'danger' | 'neutral'> = {
+  paid: 'success',
+  pending: 'warning',
+  cancelled: 'danger',
+  refunded: 'neutral',
+  failed: 'danger',
+}
+
+/** Id of the order being cancelled, so only its button shows a spinner. */
+const cancelling = ref<string | null>(null)
 
 const rows = computed(() => orders.data.value?.items ?? [])
 const meta = computed(() => orders.data.value?.meta)
@@ -60,20 +90,74 @@ const upcoming = computed(() => {
   const events = rows.value
     .filter((row) => row.order.status === 'paid')
     .map((row) => row.event)
-    .filter((event) => Boolean(event.startDate) && startsAt(event) > now)
+    // An order whose ticket type no longer resolves to an event has no date to
+    // sort on, so it is not "upcoming" either.
+    .filter((event): event is Event => Boolean(event?.startDate) && startsAt(event!) > now)
     .sort((a, b) => startsAt(a) - startsAt(b))
 
   return { count: events.length, next: events[0] ?? null }
 })
 
-function download(orderNumber: string): void {
-  ui.notify(`La facture ${orderNumber} sera disponible une fois l'API branchée.`, 'info')
+/**
+ * Downloads the order's tickets.
+ *
+ * The link is token-authenticated and public, so the browser fetches it
+ * directly. It is not a `<a href>` in the template because the URL only exists
+ * once the order is paid, and a dead button reads better than a link to
+ * nowhere — the notice below says why when it is missing.
+ */
+function download(order: Order): void {
+  const url = pdfDownloadUrl(order)
+
+  if (!url) {
+    ui.notify(
+      order.status === 'paid'
+        ? 'Le lien de téléchargement a expiré ou atteint sa limite.'
+        : 'Les billets seront disponibles une fois la commande payée.',
+      'warning',
+    )
+
+    return
+  }
+
+  window.open(url, '_blank', 'noopener,noreferrer')
 }
 
-watch(page, (value) => void orders.execute(value))
+/**
+ * Cancels an order that has not been paid.
+ *
+ * The backend releases the held stock, so the list is refetched rather than
+ * patched locally: the availability shown elsewhere has changed too.
+ */
+async function cancel(order: Order): Promise<void> {
+  cancelling.value = order.id
+
+  try {
+    await dataSource.orders.cancel(order.id)
+    ui.notify(`Commande ${order.orderNumber} annulée.`, 'success')
+    fetchOrders()
+  } catch (error) {
+    ui.notify(error instanceof ApiError ? error.message : 'Annulation impossible.', 'error')
+  } finally {
+    cancelling.value = null
+  }
+}
+
+function fetchOrders(): void {
+  void orders.execute({ page: page.value, status: (status.value || undefined) as OrderStatus | undefined })
+}
+
+watch(page, fetchOrders)
+
+// Changing the filter restarts at the first page: page 3 of "payées" rarely
+// exists when page 3 of "toutes" did.
+watch(status, () => {
+  if (page.value === 1) fetchOrders()
+  else page.value = 1
+})
 
 onMounted(() => {
-  void orders.execute(page.value)
+  fetchOrders()
 })
 </script>
 
@@ -88,20 +172,14 @@ onMounted(() => {
       </div>
 
       <div class="head__actions">
-        <BaseButton
-          variant="outline"
-          icon-start="tune"
-          @click="ui.notify('Filtres à venir.', 'info')"
-        >
-          Filtrer
-        </BaseButton>
-        <BaseButton
-          variant="outline"
-          icon-start="file_download"
-          @click="ui.notify('L’export CSV sera disponible une fois l’API branchée.', 'info')"
-        >
-          Exporter CSV
-        </BaseButton>
+        <!-- `GET /orders` filters on status server-side, so this is a real
+             query rather than a client-side pass over the current page. -->
+        <BaseSelect
+          v-model="status"
+          label="Filtrer par statut"
+          hide-label
+          :options="STATUS_OPTIONS"
+        />
       </div>
     </header>
 
@@ -118,13 +196,10 @@ onMounted(() => {
         </template>
 
         <template v-else>
-          <StatCard
-            icon="payments"
-            label="Total dépensé"
-            :value="formatPrice(totals.spent)"
-            hint="+12 % vs année dernière"
-            hint-icon="trending_up"
-          />
+          <!-- No year-on-year hint here: nothing in the API returns a previous
+               period to compare against, and a hard-coded "+12 %" is a claim
+               about the visitor's own spending that would simply be false. -->
+          <StatCard icon="payments" label="Total dépensé" :value="formatPrice(totals.spent)" />
           <StatCard
             icon="confirmation_number"
             label="Billets achetés"
@@ -196,7 +271,7 @@ onMounted(() => {
                   />
                   <div>
                     <p class="event__name">
-                      {{ row.event.title }}
+                      {{ eventTitle(row.event) }}
                     </p>
                     <p class="event__ref">
                       Réf. {{ row.order.orderNumber }} • {{ row.order.ticketsCount ?? 0 }} billet(s)
@@ -211,14 +286,24 @@ onMounted(() => {
               <td class="table__amount">{{ formatPrice(row.order.totalAmount) }}</td>
               <td>
                 <div class="row-actions">
-                  <BaseButton size="sm" variant="neutral" icon-start="visibility" href="#details">
-                    Détails
+                  <BaseBadge :variant="STATUS_VARIANTS[row.order.status]">
+                    {{ row.order.statusLabel }}
+                  </BaseBadge>
+                  <BaseButton
+                    v-if="row.order.status === 'pending'"
+                    size="sm"
+                    variant="danger"
+                    icon-start="close"
+                    :loading="cancelling === row.order.id"
+                    @click="cancel(row.order)"
+                  >
+                    Annuler
                   </BaseButton>
                   <BaseButton
                     size="sm"
                     variant="outline"
                     icon-start="file_download"
-                    @click="download(row.order.orderNumber)"
+                    @click="download(row.order)"
                   >
                     Facture
                   </BaseButton>
@@ -232,7 +317,7 @@ onMounted(() => {
         <ul class="cards">
           <li v-for="row in rows" :key="row.order.id" class="order-card">
             <div class="order-card__head">
-              <p class="event__name">{{ row.event.title }}</p>
+              <p class="event__name">{{ eventTitle(row.event) }}</p>
               <span class="table__amount">{{ formatPrice(row.order.totalAmount) }}</span>
             </div>
 
@@ -245,14 +330,24 @@ onMounted(() => {
             </p>
 
             <div class="row-actions">
-              <BaseButton size="sm" variant="neutral" icon-start="visibility" href="#details">
-                Détails
-              </BaseButton>
+              <BaseBadge :variant="STATUS_VARIANTS[row.order.status]">
+                    {{ row.order.statusLabel }}
+                  </BaseBadge>
+                  <BaseButton
+                    v-if="row.order.status === 'pending'"
+                    size="sm"
+                    variant="danger"
+                    icon-start="close"
+                    :loading="cancelling === row.order.id"
+                    @click="cancel(row.order)"
+                  >
+                    Annuler
+                  </BaseButton>
               <BaseButton
                 size="sm"
                 variant="outline"
                 icon-start="file_download"
-                @click="download(row.order.orderNumber)"
+                @click="download(row.order)"
               >
                 Facture
               </BaseButton>
