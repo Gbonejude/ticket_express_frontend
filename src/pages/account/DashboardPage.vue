@@ -58,7 +58,7 @@ onMounted(() => {
             label="Billets actifs"
             :value="data?.ticketsCount ?? 0"
           />
-          <StatCard icon="favorite" label="Favoris" :value="data?.favoritesCount ?? 0" />
+          <StatCard icon="favorite_border" label="Favoris" :value="data?.favoritesCount ?? 0" />
           <StatCard icon="history" label="Dernier achat" :value="lastPurchase" />
         </template>
       </div>

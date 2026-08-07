@@ -91,7 +91,7 @@ export const ACCOUNT_NAV: NavItem[] = [
   { label: 'Tableau de bord', route: 'dashboard', icon: 'dashboard' },
   { label: 'Mes billets', route: 'tickets', icon: 'confirmation_number' },
   { label: 'Historique', route: 'orders', icon: 'history' },
-  { label: 'Favoris', route: 'favorites', icon: 'favorite' },
+  { label: 'Favoris', route: 'favorites', icon: 'favorite_border' },
   { label: 'Notifications', route: 'notifications', icon: 'notifications' },
   { label: 'Mon profil', route: 'profile', icon: 'account_circle' },
 ]
