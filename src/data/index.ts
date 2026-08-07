@@ -126,7 +126,7 @@ export const dataSource = {
       return organizersService.get(id, signal)
     },
 
-    events(id: Ulid, signal?: AbortSignal): Promise<{ upcoming: Event[]; past: Event[] }> {
+    events(id: Ulid, signal?: AbortSignal): Promise<{ upcoming: Event[] }> {
       return organizersService.events(id, signal)
     },
 

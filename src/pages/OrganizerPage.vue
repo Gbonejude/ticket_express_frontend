@@ -27,15 +27,22 @@ const props = defineProps<{ id: string }>()
 const profile = useApiRequest(dataSource.organizers.get)
 const agenda = useApiRequest(dataSource.organizers.events)
 
-type Tab = 'upcoming' | 'past' | 'contact'
+/**
+ * Il n'y a plus d'onglet « Passés ».
+ *
+ * Le côté public ne sert plus les événements terminés : l'onglet serait resté
+ * vide en toutes circonstances, et ses cartes auraient mené à des fiches
+ * introuvables. L'historique d'un organisateur se consulte dans le back-office,
+ * là où il lui sert à quelque chose.
+ */
+type Tab = 'upcoming' | 'contact'
 
 const tab = ref<Tab>('upcoming')
 
 const organizer = computed(() => profile.data.value)
 const upcoming = computed(() => agenda.data.value?.upcoming ?? [])
-const past = computed(() => agenda.data.value?.past ?? [])
 
-const shown = computed(() => (tab.value === 'past' ? past.value : upcoming.value))
+const shown = computed(() => upcoming.value)
 
 const isLoading = computed(() => profile.isLoading.value || agenda.isLoading.value)
 
@@ -47,7 +54,7 @@ const isLoading = computed(() => profile.isLoading.value || agenda.isLoading.val
  * logo would otherwise show an empty grey band.
  */
 const banner = computed(() => {
-  const source = upcoming.value[0] ?? past.value[0]
+  const source = upcoming.value[0]
 
   return (
     organizer.value?.logo ?? (source ? eventCover(source) : null) ?? '/mock/hero-accueil.webp'
@@ -178,18 +185,6 @@ onMounted(() => void load(props.id))
 
         <button
           class="tab"
-          :class="{ 'tab--active': tab === 'past' }"
-          type="button"
-          :aria-current="tab === 'past' ? 'true' : undefined"
-          @click="tab = 'past'"
-        >
-          <BaseIcon name="event_available" :size="18" />
-          Passés
-          <span class="tab__count">{{ past.length }}</span>
-        </button>
-
-        <button
-          class="tab"
           :class="{ 'tab--active': tab === 'contact' }"
           type="button"
           :aria-current="tab === 'contact' ? 'true' : undefined"
@@ -203,15 +198,11 @@ onMounted(() => void load(props.id))
       <!-- Events -->
       <section v-if="tab !== 'contact'" class="section">
         <header class="section__head">
-          <h2 class="section__title t-headline-lg">
-            {{ tab === 'upcoming' ? 'Prochains rendez-vous' : 'Événements passés' }}
-          </h2>
+          <h2 class="section__title t-headline-lg">Prochains rendez-vous</h2>
           <span class="section__rule" aria-hidden="true" />
           <p class="section__lead t-body-md">
             {{
-              tab === 'upcoming'
-                ? `Nous avons sélectionné ${upcoming.length} événement${upcoming.length > 1 ? 's' : ''} pour vous`
-                : `${past.length} événement${past.length > 1 ? 's' : ''} déjà passé${past.length > 1 ? 's' : ''}`
+              `Nous avons sélectionné ${upcoming.length} événement${upcoming.length > 1 ? 's' : ''} pour vous`
             }}
           </p>
         </header>
@@ -224,7 +215,7 @@ onMounted(() => void load(props.id))
           v-else-if="shown.length === 0"
           level="h3"
           icon="event"
-          :title="tab === 'upcoming' ? 'Aucune date à venir' : 'Aucun événement passé'"
+          title="Aucune date à venir"
           description="Revenez bientôt : cet organisateur prépare sûrement quelque chose."
         >
           <template #action>

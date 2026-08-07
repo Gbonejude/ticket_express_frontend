@@ -24,28 +24,20 @@ export const organizersService = {
   },
 
   /**
-   * Everything an organiser has on sale, split by whether it has happened.
+   * Everything an organiser still has on sale.
    *
-   * Two requests rather than one because the API splits on `when`; they are
-   * issued in parallel so the profile's tabs fill in a single round-trip's
-   * worth of latency.
+   * Une seule requête, et plus deux : la seconde demandait `when: 'past'`, que
+   * l'API ne sert plus au public — les événements terminés ne sont visibles que
+   * depuis le back-office. Elle revenait donc systématiquement vide, au prix d'un
+   * aller-retour à chaque ouverture d'un profil.
    */
-  async events(
-    id: Ulid,
-    signal?: AbortSignal,
-  ): Promise<{ upcoming: Event[]; past: Event[] }> {
-    const [upcoming, past] = await Promise.all([
-      eventsService.list(
-        { organizer_id: id, when: 'upcoming', sort: 'date-asc', per_page: 50 },
-        signal,
-      ),
-      eventsService.list(
-        { organizer_id: id, when: 'past', sort: 'date-desc', per_page: 50 },
-        signal,
-      ),
-    ])
+  async events(id: Ulid, signal?: AbortSignal): Promise<{ upcoming: Event[] }> {
+    const upcoming = await eventsService.list(
+      { organizer_id: id, when: 'upcoming', sort: 'date-asc', per_page: 50 },
+      signal,
+    )
 
-    return { upcoming: upcoming.items, past: past.items }
+    return { upcoming: upcoming.items }
   },
 
   /**

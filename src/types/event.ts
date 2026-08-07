@@ -13,8 +13,24 @@ export type EventType = 'physical' | 'online'
 export type OrganizerStatus = 'pending' | 'approved' | 'rejected'
 
 /** How a ticket type is currently selling. Drives badges on the public site. */
+/**
+ * Les valeurs de `App\Enums\AvailabilityStatus`, mot pour mot.
+ *
+ * Le type portait `not_started` et `ended`, qui n'ont jamais existé côté API,
+ * et il ignorait `high_demand`, `running_out` et la fenêtre de vente. Un état
+ * absent de l'union ne provoque aucune erreur — il tombe simplement dans la
+ * branche par défaut du composant, ce qui affichait une pastille verte
+ * « Disponible » sur un tarif qui ne l'était pas.
+ */
 export type AvailabilityStatus =
-  'available' | 'limited' | 'almost_sold_out' | 'sold_out' | 'not_started' | 'ended'
+  | 'available'
+  | 'high_demand'
+  | 'running_out'
+  | 'almost_sold_out'
+  | 'limited'
+  | 'sold_out'
+  | 'sale_not_started'
+  | 'sale_closed'
 
 export interface EventCategory {
   id: Ulid

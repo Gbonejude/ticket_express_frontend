@@ -5,6 +5,8 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { BaseAlert, BaseButton, BaseIcon } from '@/components/ui'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
+import type { FieldErrors } from '@/utils'
+import { validate, email as validateEmail, required } from '@/utils'
 import type { ApiError } from '@/api'
 
 /**
@@ -13,6 +15,12 @@ import type { ApiError } from '@/api'
  * The fields use a floating label rather than a placeholder: a placeholder
  * disappears as soon as the visitor types, which leaves a filled form with no
  * indication of what each box holds.
+ *
+ * La validation est faite ici plutôt que laissée à l'attribut `required` : la
+ * bulle native n'est pas dans la langue du site, s'efface au premier clic et
+ * empêche de marquer le champ en rouge — le formulaire ne garde alors aucune
+ * trace de ce qui manque. Le `novalidate` sur le formulaire est ce qui coupe ce
+ * comportement, `type="email"` compris.
  */
 const auth = useAuthStore()
 const ui = useUiStore()
@@ -23,13 +31,28 @@ const email = ref('')
 const password = ref('')
 const isPasswordVisible = ref(false)
 const error = ref<string | null>(null)
-const fieldErrors = ref<Record<string, string[]>>({})
+const fieldErrors = ref<FieldErrors>({})
 
 const isSubmitting = computed(() => auth.isLoading)
 
+/** Vide l'erreur d'un champ dès qu'on le corrige. */
+function clearError(field: string): void {
+  if (fieldErrors.value[field]) {
+    const { [field]: _removed, ...rest } = fieldErrors.value
+
+    fieldErrors.value = rest
+  }
+}
+
 async function submit(): Promise<void> {
   error.value = null
-  fieldErrors.value = {}
+
+  fieldErrors.value = validate({
+    email: () => validateEmail(email.value),
+    password: () => required(password.value, 'Mot de passe'),
+  })
+
+  if (Object.keys(fieldErrors.value).length > 0) return
 
   try {
     await auth.login({ email: email.value, password: password.value })
@@ -60,52 +83,58 @@ async function submit(): Promise<void> {
 
       <BaseAlert v-if="error" class="login__error" variant="error">{{ error }}</BaseAlert>
 
-      <form class="login__form" @submit.prevent="submit">
+      <form class="login__form" novalidate @submit.prevent="submit">
         <div class="field">
-          <input
-            id="email"
-            v-model="email"
-            class="field__input"
-            :class="{ 'field__input--invalid': fieldErrors.email }"
-            type="email"
-            name="email"
-            placeholder=" "
-            autocomplete="email"
-            required
-            :aria-invalid="fieldErrors.email ? true : undefined"
-            aria-describedby="email-error"
-          />
-          <label class="field__label" for="email">Adresse e-mail</label>
+          <div class="field__control">
+            <input
+              id="email"
+              v-model="email"
+              class="field__input"
+              :class="{ 'field__input--invalid': fieldErrors.email }"
+              type="email"
+              name="email"
+              placeholder=" "
+              autocomplete="email"
+              :aria-invalid="fieldErrors.email ? true : undefined"
+              aria-describedby="email-error"
+              @input="clearError('email')"
+            />
+            <label class="field__label" for="email">Adresse e-mail</label>
+          </div>
           <p v-if="fieldErrors.email" id="email-error" class="field__error" role="alert">
             {{ fieldErrors.email[0] }}
           </p>
         </div>
 
         <div class="field">
-          <input
-            id="password"
-            v-model="password"
-            class="field__input field__input--with-action"
-            :class="{ 'field__input--invalid': fieldErrors.password }"
-            :type="isPasswordVisible ? 'text' : 'password'"
-            name="password"
-            placeholder=" "
-            autocomplete="current-password"
-            required
-            :aria-invalid="fieldErrors.password ? true : undefined"
-            aria-describedby="password-error"
-          />
-          <label class="field__label" for="password">Mot de passe</label>
+          <div class="field__control">
+            <input
+              id="password"
+              v-model="password"
+              class="field__input field__input--with-action"
+              :class="{ 'field__input--invalid': fieldErrors.password }"
+              :type="isPasswordVisible ? 'text' : 'password'"
+              name="password"
+              placeholder=" "
+              autocomplete="current-password"
+              :aria-invalid="fieldErrors.password ? true : undefined"
+              aria-describedby="password-error"
+              @input="clearError('password')"
+            />
+            <label class="field__label" for="password">Mot de passe</label>
 
-          <button
-            class="field__action"
-            type="button"
-            :aria-label="isPasswordVisible ? 'Masquer le mot de passe' : 'Afficher le mot de passe'"
-            :aria-pressed="isPasswordVisible"
-            @click="isPasswordVisible = !isPasswordVisible"
-          >
-            <BaseIcon :name="isPasswordVisible ? 'visibility' : 'lock'" :size="22" />
-          </button>
+            <button
+              class="field__action"
+              type="button"
+              :aria-label="
+                isPasswordVisible ? 'Masquer le mot de passe' : 'Afficher le mot de passe'
+              "
+              :aria-pressed="isPasswordVisible"
+              @click="isPasswordVisible = !isPasswordVisible"
+            >
+              <BaseIcon :name="isPasswordVisible ? 'visibility' : 'lock'" :size="22" />
+            </button>
+          </div>
 
           <p v-if="fieldErrors.password" id="password-error" class="field__error" role="alert">
             {{ fieldErrors.password[0] }}
@@ -113,7 +142,7 @@ async function submit(): Promise<void> {
         </div>
 
         <div class="login__forgot">
-          <a href="#mot-de-passe-oublie">Mot de passe oublié ?</a>
+          <RouterLink :to="{ name: 'forgot-password' }">Mot de passe oublié ?</RouterLink>
         </div>
 
         <BaseButton
@@ -176,14 +205,18 @@ async function submit(): Promise<void> {
   gap: var(--space-6);
 }
 
-/* --- Floating-label field --- */
-.field {
+/* --- Floating-label field ---
+   The label lives inside the box: it is centred while the field is empty and
+   settles into the top padding once it holds content. The input therefore
+   carries a taller top padding than bottom, to reserve that landing strip —
+   without it the label would have to escape the border and hang in mid-air. */
+.field__control {
   position: relative;
 }
 
 .field__input {
   width: 100%;
-  padding: var(--space-4);
+  padding: var(--space-6) var(--space-4) var(--space-2);
   font-size: var(--text-body-lg);
   background-color: var(--color-surface-container-low);
   border: 1px solid var(--color-outline);
@@ -203,38 +236,49 @@ async function submit(): Promise<void> {
   box-shadow: 0 0 0 1px var(--color-focus);
 }
 
-.field__input--invalid {
+/* Déclaré après `:focus` pour le couvrir : le champ garde son cadre rouge tant
+   que la saisie ne l'a pas effacé, et le voir passer au bleu du focus laisserait
+   croire que c'est réglé. */
+.field__input--invalid,
+.field__input--invalid:focus {
   border-color: var(--color-error);
+  box-shadow: 0 0 0 1px var(--color-error);
 }
 
 .field__label {
   position: absolute;
-  top: var(--space-4);
-  left: var(--space-4);
+  top: 50%;
+  left: calc(var(--space-4) + 1px);
   color: var(--color-secondary);
-  font-size: var(--text-body-md);
+  font-size: var(--text-body-lg);
+  line-height: var(--leading-flat);
   pointer-events: none;
+  transform: translateY(-50%);
   transition:
+    top var(--transition-fast),
     transform var(--transition-fast),
     font-size var(--transition-fast),
     color var(--transition-fast);
 }
 
-/* Lifts once the field has focus or content — `placeholder=" "` is what makes
-   `:not(:placeholder-shown)` a reliable "has content" test. */
+/* Rises to the top padding once the field has focus or content —
+   `placeholder=" "` is what makes `:not(:placeholder-shown)` a reliable
+   "has content" test, and it also covers browser autofill. */
 .field__input:focus + .field__label,
 .field__input:not(:placeholder-shown) + .field__label {
+  top: var(--space-2);
   color: var(--color-on-surface);
   font-size: var(--text-body-sm);
-  transform: translateY(-1.75rem);
+  transform: translateY(0);
 }
 
 .field__action {
   position: absolute;
-  top: var(--space-4);
+  top: 50%;
   right: var(--space-4);
   display: flex;
   color: var(--color-secondary);
+  transform: translateY(-50%);
   transition: color var(--transition-fast);
 }
 

@@ -6,6 +6,8 @@ import type { ApiError } from '@/api'
 import { BaseAlert, BaseButton, BaseIcon } from '@/components/ui'
 import { useAuthStore } from '@/stores/auth.store'
 import { useUiStore } from '@/stores/ui.store'
+import type { FieldErrors } from '@/utils'
+import { minLength, required, validate, email as validateEmail } from '@/utils'
 
 /**
  * Sign-up — Stitch screen « Inscription (Style Tikerama) ».
@@ -17,6 +19,12 @@ import { useUiStore } from '@/stores/ui.store'
  *
  * A phone field the mockup does not show is added because `register/client`
  * requires it; leaving it out would only surface as a 422 after submitting.
+ *
+ * Les champs sont vérifiés ici plutôt que par l'attribut `required` : la bulle
+ * native n'est pas dans la langue du site, s'efface au premier clic et empêche
+ * de marquer le champ fautif — sur un formulaire de six champs, c'est la seule
+ * indication de ce qui manque. Le résultat prend la forme des erreurs de l'API,
+ * si bien que les deux s'affichent par le même chemin.
  */
 const auth = useAuthStore()
 const ui = useUiStore()
@@ -30,13 +38,33 @@ const password = ref('')
 const acceptsTerms = ref(false)
 const isPasswordVisible = ref(false)
 const error = ref<string | null>(null)
-const fieldErrors = ref<Record<string, string[]>>({})
+const fieldErrors = ref<FieldErrors>({})
 
 const isSubmitting = computed(() => auth.isLoading)
 
+/** Vide l'erreur d'un champ dès qu'on le corrige. */
+function clearError(field: string): void {
+  if (fieldErrors.value[field]) {
+    const { [field]: _removed, ...rest } = fieldErrors.value
+
+    fieldErrors.value = rest
+  }
+}
+
 async function submit(): Promise<void> {
   error.value = null
-  fieldErrors.value = {}
+
+  // Le minimum de huit caractères est celui de l'API : le vérifier ici évite un
+  // aller-retour pour un refus que l'on sait d'avance.
+  fieldErrors.value = validate({
+    first_name: () => required(firstName.value, 'Prénom'),
+    last_name: () => required(lastName.value, 'Nom'),
+    email: () => validateEmail(email.value, 'E-mail'),
+    phone: () => required(phone.value, 'Téléphone'),
+    password: () => minLength(password.value, 8, 'Mot de passe'),
+  })
+
+  if (Object.keys(fieldErrors.value).length > 0) return
 
   try {
     await auth.register({
@@ -69,7 +97,7 @@ async function submit(): Promise<void> {
     <div class="signup__card">
       <BaseAlert v-if="error" class="signup__error" variant="error">{{ error }}</BaseAlert>
 
-      <form class="signup__form" @submit.prevent="submit">
+      <form class="signup__form" novalidate @submit.prevent="submit">
         <div class="signup__names">
           <div class="field">
             <label class="field__label" for="firstname">Prénom</label>
@@ -79,10 +107,12 @@ async function submit(): Promise<void> {
                 id="firstname"
                 v-model="firstName"
                 class="field__input"
+                :class="{ 'field__input--invalid': fieldErrors.first_name }"
                 type="text"
                 placeholder="Jean"
                 autocomplete="given-name"
-                required
+                :aria-invalid="fieldErrors.first_name ? true : undefined"
+                @input="clearError('first_name')"
               />
             </div>
             <p v-if="fieldErrors.first_name" class="field__error" role="alert">
@@ -98,10 +128,12 @@ async function submit(): Promise<void> {
                 id="lastname"
                 v-model="lastName"
                 class="field__input"
+                :class="{ 'field__input--invalid': fieldErrors.last_name }"
                 type="text"
                 placeholder="Dupont"
                 autocomplete="family-name"
-                required
+                :aria-invalid="fieldErrors.last_name ? true : undefined"
+                @input="clearError('last_name')"
               />
             </div>
             <p v-if="fieldErrors.last_name" class="field__error" role="alert">
@@ -118,10 +150,12 @@ async function submit(): Promise<void> {
               id="signup-email"
               v-model="email"
               class="field__input"
+              :class="{ 'field__input--invalid': fieldErrors.email }"
               type="email"
               placeholder="jean.dupont@exemple.com"
               autocomplete="email"
-              required
+              :aria-invalid="fieldErrors.email ? true : undefined"
+              @input="clearError('email')"
             />
           </div>
           <p v-if="fieldErrors.email" class="field__error" role="alert">
@@ -137,10 +171,12 @@ async function submit(): Promise<void> {
               id="signup-phone"
               v-model="phone"
               class="field__input"
+              :class="{ 'field__input--invalid': fieldErrors.phone }"
               type="tel"
               placeholder="+228 90 12 34 56"
               autocomplete="tel"
-              required
+              :aria-invalid="fieldErrors.phone ? true : undefined"
+              @input="clearError('phone')"
             />
           </div>
           <p v-if="fieldErrors.phone" class="field__error" role="alert">
@@ -156,10 +192,12 @@ async function submit(): Promise<void> {
               id="signup-password"
               v-model="password"
               class="field__input field__input--with-action"
+              :class="{ 'field__input--invalid': fieldErrors.password }"
               :type="isPasswordVisible ? 'text' : 'password'"
               placeholder="••••••••"
               autocomplete="new-password"
-              required
+              :aria-invalid="fieldErrors.password ? true : undefined"
+              @input="clearError('password')"
             />
             <button
               class="field__action"
@@ -179,7 +217,10 @@ async function submit(): Promise<void> {
         </div>
 
         <label class="signup__terms">
-          <input v-model="acceptsTerms" type="checkbox" required />
+          <!-- Pas de `required` : le bouton d'envoi est déjà désactivé tant que
+               la case n'est pas cochée, et la contrainte native ne pourrait donc
+               jamais se déclencher. -->
+          <input v-model="acceptsTerms" type="checkbox" />
           <span>
             J'accepte les <a href="#cgv">Conditions générales de vente</a> et la
             <a href="#confidentialite">Politique de confidentialité</a>.
@@ -303,6 +344,16 @@ async function submit(): Promise<void> {
   border-color: var(--color-focus);
   outline: none;
   box-shadow: 0 0 0 1px var(--color-focus);
+}
+
+/* Le champ fautif est cerné de rouge. Déclaré après `:focus` pour le couvrir :
+   le champ que l'on vient de corriger garde son cadre rouge tant que la saisie
+   ne l'a pas effacé, et le voir passer au bleu du focus laisserait croire que
+   c'est réglé. */
+.field__input--invalid,
+.field__input--invalid:focus {
+  border-color: var(--color-error);
+  box-shadow: 0 0 0 1px var(--color-error);
 }
 
 .field__action {

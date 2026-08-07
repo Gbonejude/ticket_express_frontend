@@ -177,6 +177,21 @@ export const routes: RouteRecordRaw[] = [
         component: () => import('@/pages/auth/RegisterPage.vue'),
         meta: { title: 'Créer un compte', guestOnly: true },
       },
+      {
+        path: 'mot-de-passe-oublie',
+        name: 'forgot-password',
+        component: () => import('@/pages/auth/ForgotPasswordPage.vue'),
+        meta: { title: 'Mot de passe oublié', guestOnly: true },
+      },
+      {
+        // Cible du lien envoyé par mail : le chemin est un contrat avec
+        // `PARTICIPANT_PASSWORD_RESET_URL` côté API. Le changer sans changer la
+        // variable d'environnement casse tous les liens déjà partis.
+        path: 'reinitialiser-mot-de-passe',
+        name: 'reset-password',
+        component: () => import('@/pages/auth/ResetPasswordPage.vue'),
+        meta: { title: 'Nouveau mot de passe', guestOnly: true },
+      },
     ],
   },
 

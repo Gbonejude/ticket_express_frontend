@@ -26,6 +26,15 @@ const badge = computed(() => {
 
   if (availabilityStatus === 'sold_out')
     return { tone: 'sold', icon: 'cancel' as const, label: 'Soldout' }
+
+  // Hors fenêtre de vente : ce n'est pas « complet », il reste des places. La
+  // pastille tombait dans la branche par défaut et affichait donc un rond vert
+  // sur un tarif que le serveur refuse.
+  if (availabilityStatus === 'sale_closed')
+    return { tone: 'sold', icon: 'lock' as const, label: availabilityStatusLabel }
+  if (availabilityStatus === 'sale_not_started')
+    return { tone: 'limited', icon: 'event_available' as const, label: availabilityStatusLabel }
+
   if (availabilityStatus === 'almost_sold_out' || availabilityStatus === 'limited') {
     return { tone: 'limited', icon: 'schedule' as const, label: 'Places limitées' }
   }
@@ -68,7 +77,11 @@ function step(delta: number): void {
 
     <p v-if="ticketType.description" class="ticket__description">{{ ticketType.description }}</p>
 
-    <p v-if="!ticketType.isAvailableForPurchase" class="ticket__sold-note">Soldout</p>
+    <!-- Le libellé vient du serveur : « Soldout » écrit en dur mentait sur un
+         tarif hors fenêtre de vente, où il reste des places. -->
+    <p v-if="!ticketType.isAvailableForPurchase" class="ticket__sold-note">
+      {{ ticketType.availabilityStatus === 'sold_out' ? 'Soldout' : badge.label }}
+    </p>
 
     <div v-else class="ticket__footer">
       <span class="ticket__hint">Sélectionnez la quantité</span>
