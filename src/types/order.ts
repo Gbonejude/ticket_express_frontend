@@ -3,7 +3,7 @@ import type { TicketType } from './event'
 import type { User } from './user'
 
 export type OrderStatus = 'pending' | 'paid' | 'cancelled' | 'refunded' | 'failed'
-export type TicketStatus = 'valid' | 'used' | 'cancelled' | 'refunded'
+export type TicketStatus = 'valid' | 'used' | 'expired' | 'cancelled' | 'refunded'
 /**
  * How the buyer receives the ticket.
  *

@@ -40,13 +40,18 @@ function eventOf(ticket: Ticket): Event | null {
 }
 
 /**
- * Whether a ticket's event is over.
+ * Whether a ticket can no longer be used because its event is behind us.
  *
- * The backend has no `expired` ticket status — a ticket stays `valid` forever.
- * "Expiré" on the public site therefore means *the event has ended*, which is
- * decided here rather than read from a field that does not exist.
+ * The backend now has an `expired` status, set by the hourly `tickets:expire`
+ * command once an event's check-in window has closed. That status is
+ * authoritative — but it lags by up to an hour, and the holder looking at their
+ * own ticket the minute the concert ends should not read "Valide". The date
+ * derivation stays as the immediate signal; the stored status is the durable
+ * one. Either is enough.
  */
 export function isExpired(row: TicketRow): boolean {
+  if (row.ticket.status === 'expired') return true
+
   const end = row.event?.endDate?.datetime ?? row.event?.startDate?.datetime
 
   if (!end) return false
@@ -57,12 +62,12 @@ export function isExpired(row: TicketRow): boolean {
 /**
  * The state shown on a ticket.
  *
- * `expired` and `pending` are not backend statuses. `expired` is derived from
- * the event's end date (see above); `pending` belongs to an order whose payment
- * has not gone through — tickets are only issued by the `OrderPaid` listener,
- * so an unpaid order has none yet and is represented by the order itself.
+ * `pending` is the only one that is not a backend status: it belongs to an
+ * order whose payment has not gone through — tickets are only issued by the
+ * `OrderPaid` listener, so an unpaid order has none yet and is represented by
+ * the order itself.
  */
-export type TicketDisplayStatus = TicketStatus | 'expired' | 'pending'
+export type TicketDisplayStatus = TicketStatus | 'pending'
 
 export function displayStatus(row: TicketRow): TicketDisplayStatus {
   return isExpired(row) ? 'expired' : row.ticket.status

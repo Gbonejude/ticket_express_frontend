@@ -149,7 +149,9 @@ describe('displayStatus', () => {
     expect(isActive(row(ticket(), event()))).toBe(true)
   })
 
-  it('derives "expired" from the event having ended, which no API field carries', () => {
+  it('derives "expired" from the event having ended, before the backend catches up', () => {
+    // `tickets:expire` runs hourly: between the gate closing and the next run,
+    // the stored status still says `valid`. The holder must not read "Valide".
     const past = event({
       startDate: { datetime: '2020-01-01T20:00:00Z', human: '', humanDiff: '' },
       endDate: { datetime: '2020-01-01T23:00:00Z', human: '', humanDiff: '' },
@@ -157,6 +159,14 @@ describe('displayStatus', () => {
 
     expect(displayStatus(row(ticket(), past))).toBe('expired')
     expect(isActive(row(ticket(), past))).toBe(false)
+  })
+
+  it('trusts the backend "expired" status on its own', () => {
+    // Once the command has run, the status is authoritative — no date needed.
+    const undated = event({ startDate: null, endDate: null })
+
+    expect(displayStatus(row(ticket({ status: 'expired' }), undated))).toBe('expired')
+    expect(isActive(row(ticket({ status: 'expired' }), undated))).toBe(false)
   })
 
   it('keeps the backend status when it is not valid, even for a past event', () => {
