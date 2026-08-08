@@ -5,7 +5,7 @@ import EventCard from '@/components/event/EventCard.vue'
 import { BaseAlert, BaseBadge, BaseButton, BaseEmptyState, BaseSkeleton } from '@/components/ui'
 import { useApiRequest } from '@/composables/useApiRequest'
 import { dataSource } from '@/data'
-import { displayStatus, isActive, TICKET_STATUS_LABELS } from '@/services'
+import { displayStatus, isActive, paidPrice, TICKET_STATUS_LABELS } from '@/services'
 import type { TicketDisplayStatus } from '@/services'
 import type { Event } from '@/types/event'
 
@@ -71,7 +71,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="container tickets">
+  <div>
     <header class="tickets__header">
       <h1 class="t-headline-xl">Mes Billets</h1>
       <p class="tickets__lead t-body-lg">
@@ -132,6 +132,8 @@ onMounted(() => {
         :key="row.order.id"
         :event="row.event"
         :show-favorite="false"
+        :price="row.order.totalAmount"
+        price-label="À régler"
         cta-label="Finaliser le paiement"
         :cta-to="{ name: 'checkout', params: { id: row.event?.id ?? '' } }"
       >
@@ -159,6 +161,8 @@ onMounted(() => {
         :key="row.ticket.id"
         :event="row.event"
         :show-favorite="false"
+        :price="paidPrice(row)"
+        price-label="Payé"
         cta-label="Voir le billet"
         :cta-to="{ name: 'ticket-detail', params: { id: row.ticket.id } }"
         :title-to="{ name: 'ticket-detail', params: { id: row.ticket.id } }"
@@ -177,12 +181,11 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.tickets {
-  padding-block: var(--space-8) var(--space-section-gap);
-}
-
+/* Ni conteneur ni marge verticale ici : la page vit dans `AccountLayout`, dont
+   `.content` pose déjà la largeur maximale et le `padding` de la colonne. Les
+   deux se cumulaient et laissaient un vide au-dessus du titre. */
 .tickets__header {
-  margin-block-end: var(--space-section-gap);
+  margin-block-end: var(--space-8);
 }
 
 .tickets__lead {

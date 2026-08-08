@@ -106,6 +106,23 @@ export function qrImageUrl(row: TicketRow): string | null {
   )
 }
 
+/**
+ * Ce que ce billet a coûté.
+ *
+ * La ligne de commande fait foi, pas le tarif : `unitPrice` est le montant
+ * réellement facturé, promotion comprise, et il ne bouge plus si l'organisateur
+ * change son prix après coup. Le tarif courant ne sert que de secours, pour une
+ * commande dont les lignes ne seraient pas chargées.
+ *
+ * `null` quand ni l'un ni l'autre n'est là — l'appelant décide alors quoi
+ * afficher plutôt que de montrer « 0 F ».
+ */
+export function paidPrice(row: TicketRow): number | null {
+  const line = row.order.items?.find((item) => item.ticketTypeId === row.ticket.ticketTypeId)
+
+  return line?.unitPrice ?? row.ticket.ticketType?.currentPrice ?? null
+}
+
 /** Public URL of the order's ticket PDF, or null when the link has lapsed. */
 export function pdfDownloadUrl(order: Order): string | null {
   const downloads = order.downloads

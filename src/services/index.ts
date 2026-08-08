@@ -14,6 +14,7 @@ export {
   displayStatus,
   isActive,
   isExpired,
+  paidPrice,
   pdfDownloadUrl,
   qrImageUrl,
   TICKET_STATUS_LABELS,

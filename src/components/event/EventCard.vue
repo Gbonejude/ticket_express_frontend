@@ -46,6 +46,17 @@ const props = withDefaults(
     titleTo?: RouteLocationRaw
     /** Off on screens where favouriting makes no sense. */
     showFavorite?: boolean
+    /**
+     * Un montant exact à afficher à la place du tarif d'appel.
+     *
+     * « Mes billets » en a besoin : un billet a un prix, celui qui a été payé,
+     * et non « à partir de » le plus bas tarif de l'événement. La carte y
+     * affichait même « Tarifs à venir », parce que la commande ne transporte pas
+     * les tarifs de l'événement et que le calcul retombait sur `null`.
+     */
+    price?: number | null
+    /** Le libellé devant ce montant — « Payé », « À régler ». */
+    priceLabel?: string
   }>(),
   {
     isFavorite: false,
@@ -54,6 +65,8 @@ const props = withDefaults(
     ctaTo: undefined,
     titleTo: undefined,
     showFavorite: true,
+    price: undefined,
+    priceLabel: undefined,
   },
 )
 
@@ -172,7 +185,12 @@ const organizerInitial = computed(() =>
         </li>
         <li class="event-card__meta-row event-card__meta-row--price">
           <BaseIcon name="payments" :size="16" />
-          <span v-if="startingPrice === null">Tarifs à venir</span>
+          <!-- Un montant imposé gagne : sur un billet, c'est le prix payé qui
+               compte, pas le tarif le moins cher de l'événement. -->
+          <span v-if="price != null">
+            <template v-if="priceLabel">{{ priceLabel }}&nbsp;</template>{{ formatPrice(price) }}
+          </span>
+          <span v-else-if="startingPrice === null">Tarifs à venir</span>
           <span v-else>
             À partir de {{ formatPrice(startingPrice) }}
             <!-- The old price only makes sense next to the discounted one; the

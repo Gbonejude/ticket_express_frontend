@@ -4,7 +4,7 @@ import { computed, onMounted, watch } from 'vue'
 import { BaseAlert, BaseBadge, BaseButton, BaseIcon, BaseSkeleton } from '@/components/ui'
 import { useApiRequest } from '@/composables/useApiRequest'
 import { dataSource } from '@/data'
-import { pdfDownloadUrl, qrImageUrl } from '@/services'
+import { paidPrice, pdfDownloadUrl, qrImageUrl } from '@/services'
 import { useUiStore } from '@/stores/ui.store'
 import { eventCover } from '@/utils/event'
 import { formatPrice } from '@/utils/format'
@@ -23,6 +23,9 @@ const ui = useUiStore()
 const row = useApiRequest(dataSource.tickets.get)
 
 const ticket = computed(() => row.data.value?.ticket)
+
+/** Ce que ce billet a coûté — la ligne de commande fait foi, pas le tarif. */
+const price = computed(() => (row.data.value ? paidPrice(row.data.value) : null))
 const event = computed(() => row.data.value?.event)
 const order = computed(() => row.data.value?.order)
 
@@ -199,8 +202,11 @@ onMounted(() => {
               </div>
               <div>
                 <dt>Prix</dt>
+                <!-- Le prix payé, lu sur la ligne de commande, et non le tarif
+                     courant : une promotion terminée ou un tarif réajusté depuis
+                     l'achat affichait un montant que le porteur n'a jamais réglé. -->
                 <dd class="t-headline-md specs__price">
-                  {{ formatPrice(ticket.ticketType?.currentPrice) }}
+                  {{ price === null ? '—' : formatPrice(price) }}
                 </dd>
               </div>
               <div>
