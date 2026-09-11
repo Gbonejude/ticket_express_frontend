@@ -21,6 +21,11 @@ import { pdfDownloadUrl } from '@/services'
 import type { Event } from '@/types/event'
 import type { Order, OrderStatus } from '@/types/order'
 import { eventCover, eventTitle } from '@/utils/event'
+
+// La référence de transaction (le « Ref: … » du SMS PayGate) permet de relier
+// le message reçu à la bonne commande.
+const paymentRef = (order: Order): string | null =>
+  order.payments?.find(p => p.transactionReference)?.transactionReference ?? null
 import { formatDate, formatPrice, formatTime } from '@/utils/format'
 
 /**
@@ -274,7 +279,7 @@ onMounted(() => {
                       {{ eventTitle(row.event) }}
                     </p>
                     <p class="event__ref">
-                      Réf. {{ row.order.orderNumber }} • {{ row.order.ticketsCount ?? 0 }} billet(s)
+                      Réf. {{ row.order.orderNumber }} • {{ row.order.ticketsCount ?? 0 }} billet(s)<span v-if="paymentRef(row.order)"> • Paiement réf. {{ paymentRef(row.order) }}</span>
                     </p>
                   </div>
                 </div>
@@ -322,7 +327,7 @@ onMounted(() => {
             </div>
 
             <p class="event__ref">
-              Réf. {{ row.order.orderNumber }} • {{ row.order.ticketsCount ?? 0 }} billet(s)
+              Réf. {{ row.order.orderNumber }} • {{ row.order.ticketsCount ?? 0 }} billet(s)<span v-if="paymentRef(row.order)"> • Paiement réf. {{ paymentRef(row.order) }}</span>
             </p>
             <p class="order-card__date">
               <BaseIcon name="calendar_month" :size="16" />

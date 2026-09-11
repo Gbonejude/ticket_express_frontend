@@ -135,7 +135,7 @@ onMounted(() => {
         :price="row.order.totalAmount"
         price-label="À régler"
         cta-label="Finaliser le paiement"
-        :cta-to="{ name: 'checkout', params: { id: row.event?.id ?? '' } }"
+        :cta-to="{ name: 'checkout', params: { eventId: row.event?.id ?? '' } }"
       >
         <template #footer>
           <span class="ticket-ref">Réf. {{ row.order.orderNumber }}</span>
