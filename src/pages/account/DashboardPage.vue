@@ -8,7 +8,7 @@ import { BaseAlert, BaseButton, BaseIcon, BaseSkeleton } from '@/components/ui'
 import { useApiRequest } from '@/composables/useApiRequest'
 import { dataSource } from '@/data'
 import { useAuthStore } from '@/stores/auth.store'
-import { formatRelativeFromIso } from '@/utils/format'
+import { formatPrice } from '@/utils/format'
 
 /** Dashboard — Stitch screen « Tableau de bord ». */
 const auth = useAuthStore()
@@ -18,9 +18,6 @@ const summary = useApiRequest(dataSource.account.dashboard)
 const data = computed(() => summary.data.value)
 
 const firstName = computed(() => auth.user?.firstName || auth.displayName || 'à vous')
-
-/** "il y a 2 jours", or a dash until the visitor has ordered anything. */
-const lastPurchase = computed(() => formatRelativeFromIso(data.value?.lastOrderAt))
 
 onMounted(() => {
   void summary.execute()
@@ -59,7 +56,7 @@ onMounted(() => {
             :value="data?.ticketsCount ?? 0"
           />
           <StatCard icon="favorite_border" label="Favoris" :value="data?.favoritesCount ?? 0" />
-          <StatCard icon="history" label="Dernier achat" :value="lastPurchase" />
+          <StatCard icon="payments" label="Total payé" :value="formatPrice(data?.totalSpent ?? 0)" />
         </template>
       </div>
 

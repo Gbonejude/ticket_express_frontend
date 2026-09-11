@@ -26,7 +26,7 @@ import { eventCover, eventTitle } from '@/utils/event'
 // le message reçu à la bonne commande.
 const paymentRef = (order: Order): string | null =>
   order.payments?.find(p => p.transactionReference)?.transactionReference ?? null
-import { formatDate, formatPrice, formatTime } from '@/utils/format'
+import { formatDate, formatPrice } from '@/utils/format'
 
 /**
  * Purchase history — Stitch screen « Historique des achats ».
@@ -72,7 +72,9 @@ const totals = computed(() => {
   const paid = rows.value.filter((row) => row.order.status === 'paid')
 
   return {
-    spent: paid.reduce((sum, row) => sum + row.order.totalAmount, 0),
+    // `totalAmount` arrive en chaîne (« 6000.00 », cast décimal Laravel) : sans
+    // `Number()`, `0 + "6000.00"` concatène et le total devient NaN → « — ».
+    spent: paid.reduce((sum, row) => sum + Number(row.order.totalAmount ?? 0), 0),
     tickets: paid.reduce((sum, row) => sum + (row.order.ticketsCount ?? 0), 0),
   }
 })
@@ -285,8 +287,9 @@ onMounted(() => {
                 </div>
               </td>
               <td class="table__date">
+                <!-- `human` porte déjà date + heure (« ven. 11 sept. 2026, 11h28 »),
+                     donc pas de seconde ligne d'heure qui la répéterait. -->
                 <span class="table__date-day">{{ formatDate(row.order.createdAt) }}</span>
-                <span class="table__date-time">{{ formatTime(row.order.createdAt) }}</span>
               </td>
               <td class="table__amount">{{ formatPrice(row.order.totalAmount) }}</td>
               <td>
@@ -331,7 +334,7 @@ onMounted(() => {
             </p>
             <p class="order-card__date">
               <BaseIcon name="calendar_month" :size="16" />
-              {{ formatDate(row.order.createdAt) }} • {{ formatTime(row.order.createdAt) }}
+              {{ formatDate(row.order.createdAt) }}
             </p>
 
             <div class="row-actions">
@@ -460,7 +463,7 @@ onMounted(() => {
   font-size: var(--text-body-sm);
 }
 
-/* Date on top, time centred underneath it. */
+/* Date + heure sur une ligne (le libellé `human` porte déjà les deux). */
 .table__date {
   display: flex;
   flex-direction: column;
@@ -468,12 +471,6 @@ onMounted(() => {
   color: var(--color-on-surface-variant);
   font-size: var(--text-body-md);
   white-space: nowrap;
-}
-
-.table__date-time {
-  color: var(--color-secondary);
-  font-size: var(--text-body-sm);
-  font-variant-numeric: tabular-nums;
 }
 
 .table__amount {

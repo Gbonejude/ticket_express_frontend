@@ -47,6 +47,8 @@ export interface DashboardSummary {
   favorites: Event[]
   /** ISO date of the most recent order, or null if there is none. */
   lastOrderAt: string | null
+  /** Somme des montants des commandes payées du participant. */
+  totalSpent: number
 }
 
 /**
@@ -233,6 +235,13 @@ export const dataSource = {
         .filter((date): date is string => Boolean(date))
         .sort((a, b) => b.localeCompare(a))[0]
 
+      // Total payé : sommer les commandes DISTINCTES (les lignes `tickets` sont
+      // par billet — une commande de 3 billets y apparaît 3 fois). `Number()`
+      // car `totalAmount` arrive en chaîne (« 6000.00 », cast décimal Laravel) :
+      // sans lui, `0 + "6000.00"` concatène et le total devient NaN.
+      const paidOrders = [...new Map(tickets.map((row) => [row.order.id, row.order])).values()]
+      const totalSpent = paidOrders.reduce((sum, order) => sum + Number(order.totalAmount ?? 0), 0)
+
       return {
         ticketsCount: active.length,
         upcomingCount: upcoming.length,
@@ -240,6 +249,7 @@ export const dataSource = {
         upcoming: upcoming.slice(0, 2),
         favorites: favoritesStore.events.slice(0, 2),
         lastOrderAt: lastOrder ?? null,
+        totalSpent,
       }
     },
   },
