@@ -19,7 +19,9 @@ const props = defineProps<{ ticketType: TicketType }>()
 
 const quantity = defineModel<number>({ default: 0 })
 
-const max = computed(() => Math.min(props.ticketType.remainingTickets, 10))
+// Borné par le stock restant, et par rien d'autre : le plafond fixe de 10 par
+// tarif empêchait un achat de groupe légitime alors que les places existent.
+const max = computed(() => props.ticketType.remainingTickets)
 
 const badge = computed(() => {
   const { availabilityStatus, availabilityStatusLabel } = props.ticketType
